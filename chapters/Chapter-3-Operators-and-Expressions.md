@@ -1,7 +1,5 @@
 # **Chapter 3: Operators and Expressions**
 
-In this chapter, we will explore how to perform operations and build expressions in Go using arithmetic, comparison, logical, and assignment operators. You'll also learn about Go's type inference and how it simplifies variable declarations.
-
 ---
 
 ## **3.1 Arithmetic Operators**

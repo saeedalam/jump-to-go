@@ -1,8 +1,6 @@
 
 # **Chapter 2: Variables, Constants, and Data Types**
 
-In this chapter, we’ll explore how to declare and use variables, define constants, and work with Go’s basic data types. By the end of this chapter, you'll have a strong grasp of handling data in Go programs.
-
 ---
 
 ## **2.1 Declaring Variables**

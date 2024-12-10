@@ -1,8 +1,6 @@
 
 # **Chapter 4: Control Structures**
 
-Control structures in Go allow you to make decisions, loop through data, and manage the flow of your programs effectively. This chapter introduces **if statements**, **switch statements**, **loops**, and explains Go's **type inference rules**.
-
 ---
 
 ## **4.1 If Statements**
