@@ -101,11 +101,20 @@ func main() {
     const daysInWeek = 7
 
     // Print the values of the constants
-    fmt.Println("Pi:", pi)                  // Output: Pi: 3.14159
-    fmt.Println("Greeting:", greeting)      // Output: Greeting: Hello, Go!
-    fmt.Println("Days in a week:", daysInWeek) // Output: Days in a week: 7
+    fmt.Println("Pi:", pi)              
+    fmt.Println("Greeting:", greeting)  
+    fmt.Println("Days in a week:", daysInWeek)
 }
 
+```
+
+
+### **Output:**
+
+```
+Pi: 3.14159
+Greeting: Hello, Go!
+Days in a week: 7
 ```
 
 ### **Table: Typed vs. Untyped Constants**
@@ -177,6 +186,14 @@ func main() {
     fmt.Println("Converted to float64:", b)
     fmt.Println("Converted to string:", c)
 }
+```
+
+### **Output:**
+
+```
+Integer: 42
+Converted to float64: 42
+Converted to string: 42
 ```
 
 ### **Common Pitfalls**
