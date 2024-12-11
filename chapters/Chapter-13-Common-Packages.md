@@ -267,10 +267,6 @@ Selected: Option A
 
 # **13.4: Exercises - Common Packages**
 
-This section provides **10 solved exercises** to help you master the use of the `fmt`, `time`, and `math/rand` packages in Go. Each exercise includes code, explanations, and expected outputs.
-
----
-
 ## **Exercise 1: Table Formatter**
 
 **Problem**: Write a program to format a table of student names and their grades using the `fmt` package.

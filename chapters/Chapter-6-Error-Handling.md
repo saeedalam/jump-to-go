@@ -1,7 +1,5 @@
-
 # **Chapter 6: Error Handling in Go**
 
----
 
 ## **6.1 Returning Errors**
 
