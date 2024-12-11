@@ -1,4 +1,4 @@
-# **Understanding Pointers and Passing by Value vs. Reference**
+# **Understanding Pointers**
 
 ## **9.1. Introduction to Pointers**
 
