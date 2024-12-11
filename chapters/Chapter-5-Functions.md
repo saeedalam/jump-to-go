@@ -529,10 +529,6 @@ Cube of 3: 27
 
 ---
 
-**Congratulations!** You've completed the exercises for Chapter 5. These examples cover the breadth of function-related concepts in Go, equipping you to use them effectively in real-world applications.
-
----
-
 ## **5.5 Summary**
 
 In this chapter, we explored:
@@ -543,6 +539,3 @@ In this chapter, we explored:
 
 Functions are at the heart of Go programming, making your code cleaner and more reusable. Practice writing functions to solidify your understanding!
 
----
-
-**Happy Coding!** 💻✨

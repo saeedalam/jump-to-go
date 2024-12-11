@@ -198,12 +198,244 @@ x > z && y < z      true
 
 ---
 
-## **Summary**
+# **3.6. Exercises**
 
-- Use arithmetic operators for basic math operations.
-- Apply comparison and logical operators to evaluate expressions.
-- Simplify code with compound assignment operators like `+=` and `*=`.
-- Leverage Go’s type inference for concise and clean code.
-- Always handle mixed-type operations carefully with explicit type conversion.
+## **Exercise 1: Simple Arithmetic Operations**
 
-Next, we’ll explore **control structures** to build flow in your programs!
+**Problem**: Write a program that performs addition, subtraction, multiplication, division, and modulus on two integers entered by the user.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    var a, b int
+    fmt.Print("Enter two integers: ")
+    fmt.Scan(&a, &b)
+
+    fmt.Println("Addition:", a+b)
+    fmt.Println("Subtraction:", a-b)
+    fmt.Println("Multiplication:", a*b)
+    fmt.Println("Division:", a/b)
+    fmt.Println("Modulus:", a%b)
+}
+```
+
+**Output (Example):**
+
+```
+Enter two integers: 10 3
+Addition: 13
+Subtraction: 7
+Multiplication: 30
+Division: 3
+Modulus: 1
+```
+
+---
+
+## **Exercise 2: Comparison and Logical Operators**
+
+**Problem**: Write a program to compare two integers and evaluate logical expressions.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    var x, y int
+    fmt.Print("Enter two integers: ")
+    fmt.Scan(&x, &y)
+
+    fmt.Println("x == y:", x == y)
+    fmt.Println("x != y:", x != y)
+    fmt.Println("x > y:", x > y)
+    fmt.Println("x < y:", x < y)
+
+    fmt.Println("x > 5 && y < 20:", x > 5 && y < 20)
+    fmt.Println("x < 10 || y > 10:", x < 10 || y > 10)
+    fmt.Println("!(x == y):", !(x == y))
+}
+```
+
+**Output (Example):**
+
+```
+Enter two integers: 8 15
+x == y: false
+x != y: true
+x > y: false
+x < y: true
+x > 5 && y < 20: true
+x < 10 || y > 10: true
+!(x == y): true
+```
+
+---
+
+## **Exercise 3: Compound Assignment Operators**
+
+**Problem**: Write a program that demonstrates the use of `+=`, `-=`, `*=`, `/=`, and `%=` operators.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    var num int
+    fmt.Print("Enter an integer: ")
+    fmt.Scan(&num)
+
+    fmt.Println("Initial value:", num)
+    num += 10
+    fmt.Println("After += 10:", num)
+    num -= 5
+    fmt.Println("After -= 5:", num)
+    num *= 2
+    fmt.Println("After *= 2:", num)
+    num /= 4
+    fmt.Println("After /= 4:", num)
+    num %= 3
+    fmt.Println("After %= 3:", num)
+}
+```
+
+**Output (Example):**
+
+```
+Enter an integer: 20
+Initial value: 20
+After += 10: 30
+After -= 5: 25
+After *= 2: 50
+After /= 4: 12
+After %= 3: 0
+```
+
+---
+
+## **Exercise 4: Type Conversion in Arithmetic**
+
+**Problem**: Write a program to calculate the sum and average of two numbers where one is an integer and the other is a floating-point number.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    var a int
+    var b float64
+    fmt.Print("Enter an integer and a float: ")
+    fmt.Scan(&a, &b)
+
+    sum := float64(a) + b
+    average := sum / 2
+
+    fmt.Printf("Sum: %.2f\n", sum)
+    fmt.Printf("Average: %.2f\n", average)
+}
+```
+
+**Output (Example):**
+
+```
+Enter an integer and a float: 5 4.5
+Sum: 9.50
+Average: 4.75
+```
+
+---
+
+## **Exercise 5: Arithmetic and Logical Expressions**
+
+**Problem**: Write a program to calculate and display the results of complex arithmetic and logical expressions.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    x, y, z := 10, 20, 15
+
+    fmt.Println("x + y * z:", x+y*z)
+    fmt.Println("(x + y) * z:", (x+y)*z)
+    fmt.Println("x > y && y < z:", x > y && y < z)
+    fmt.Println("x < z || y > z:", x < z || y > z)
+}
+```
+
+**Output:**
+
+```
+x + y * z: 310
+(x + y) * z: 450
+x > y && y < z: false
+x < z || y > z: true
+```
+
+---
+
+## **Exercise 6: Building a Simple Calculator**
+
+**Problem**: Write a program that acts as a simple calculator, allowing the user to choose an operation (add, subtract, multiply, divide) to perform on two numbers.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    var a, b, choice int
+    fmt.Println("Simple Calculator")
+    fmt.Print("Enter two integers: ")
+    fmt.Scan(&a, &b)
+
+    fmt.Println("Choose an operation:")
+    fmt.Println("1. Addition")
+    fmt.Println("2. Subtraction")
+    fmt.Println("3. Multiplication")
+    fmt.Println("4. Division")
+    fmt.Print("Enter your choice: ")
+    fmt.Scan(&choice)
+
+    switch choice {
+    case 1:
+        fmt.Println("Result:", a+b)
+    case 2:
+        fmt.Println("Result:", a-b)
+    case 3:
+        fmt.Println("Result:", a*b)
+    case 4:
+        if b != 0 {
+            fmt.Println("Result:", a/b)
+        } else {
+            fmt.Println("Error: Division by zero!")
+        }
+    default:
+        fmt.Println("Invalid choice!")
+    }
+}
+```
+
+**Output (Example):**
+
+```
+Simple Calculator
+Enter two integers: 12 4
+Choose an operation:
+1. Addition
+2. Subtraction
+3. Multiplication
+4. Division
+Enter your choice: 3
+Result: 48
+```
+
+---
+
+**Congratulations!** You’ve completed the exercises for Chapter 3. These examples cover arithmetic, comparison, logical operations, type conversion, and more, helping you apply these concepts in practical scenarios.

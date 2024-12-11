@@ -1,4 +1,3 @@
-
 # **Chapter 4: Control Structures**
 
 ---
@@ -8,6 +7,7 @@
 The `if` statement is used to evaluate conditions and execute code blocks accordingly.
 
 ### **Example 1: Basic If Statement**
+
 ```go
 package main
 
@@ -25,12 +25,15 @@ func main() {
 ```
 
 **Output:**
+
 ```
 You are an adult.
 ```
 
 ### **Example 2: If with Short Variable Declaration**
+
 Go allows you to declare variables directly in the condition.
+
 ```go
 package main
 
@@ -46,6 +49,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 42 is even.
 ```
@@ -57,6 +61,7 @@ func main() {
 `Switch` statements are a concise way to handle multiple conditions.
 
 ### **Example 3: Basic Switch Statement**
+
 ```go
 package main
 
@@ -77,12 +82,15 @@ func main() {
 ```
 
 **Output:**
+
 ```
 Start of the workweek.
 ```
 
 ### **Example 4: Switch Without a Condition**
+
 Go allows `switch` statements without a condition, acting like a series of `if-else` blocks.
+
 ```go
 package main
 
@@ -103,6 +111,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 Number is between 10 and 20.
 ```
@@ -114,6 +123,7 @@ Number is between 10 and 20.
 Go uses `for` as its only loop construct. It can be adapted to different looping patterns.
 
 ### **Example 5: Basic For Loop**
+
 ```go
 package main
 
@@ -127,6 +137,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 Iteration: 1
 Iteration: 2
@@ -136,7 +147,9 @@ Iteration: 5
 ```
 
 ### **Example 6: Using Range in a Loop**
+
 The `range` keyword is used to iterate over arrays, slices, or maps.
+
 ```go
 package main
 
@@ -152,6 +165,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 Index 0: Apple
 Index 1: Banana
@@ -159,7 +173,9 @@ Index 2: Cherry
 ```
 
 ### **Example 7: Infinite Loop**
+
 Create an infinite loop using `for` and break it with a condition.
+
 ```go
 package main
 
@@ -178,6 +194,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 Count: 0
 Count: 1
@@ -191,6 +208,7 @@ Count: 2
 Go’s type inference lets you declare variables without explicitly specifying their types. The compiler infers the type based on the value assigned.
 
 ### **Example 8: Type Inference in Action**
+
 ```go
 package main
 
@@ -208,6 +226,7 @@ func main() {
 ```
 
 **Output:**
+
 ```
 number: 42 (type: int)
 pi: 3.140000 (type: float64)
@@ -216,19 +235,201 @@ message: Go (type: string)
 
 ---
 
-## **Summary**
+# **Chapter 4.5 Exercises**
 
-By now, you should be able to:
-1. Use `if` statements for conditional logic.
-2. Implement `switch` statements for handling multiple conditions.
-3. Work with loops, including `for`, `range`, and infinite loops.
-4. Leverage Go's type inference to simplify your code.
+## **Exercise 1: Check if a Number is Even or Odd**
 
-**Challenge:** Write a program that checks whether a number is:
-- Positive or negative.
-- Even or odd.
-- A multiple of 5.
+**Problem**: Write a program that takes a number and checks whether it is even or odd using an `if-else` statement.
 
-Use a combination of `if`, `switch`, and loops to achieve this.
+```go
+package main
 
-**Next Up:** Dive deeper into functions and error handling in the next chapter!
+import "fmt"
+
+func main() {
+    number := 17
+
+    if number%2 == 0 {
+        fmt.Println(number, "is even.")
+    } else {
+        fmt.Println(number, "is odd.")
+    }
+}
+```
+
+**Output:**
+
+```
+17 is odd.
+```
+
+---
+
+## **Exercise 2: Categorize Age**
+
+**Problem**: Write a program that categorizes a person's age group using `if-else` statements:
+
+- Child (0–12)
+- Teenager (13–19)
+- Adult (20+)
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    age := 25
+
+    if age <= 12 {
+        fmt.Println("Child")
+    } else if age <= 19 {
+        fmt.Println("Teenager")
+    } else {
+        fmt.Println("Adult")
+    }
+}
+```
+
+**Output:**
+
+```
+Adult
+```
+
+---
+
+## **Exercise 3: Determine Day Type**
+
+**Problem**: Write a program that determines whether a given day is a weekday or weekend using a `switch` statement.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    day := "Saturday"
+
+    switch day {
+    case "Saturday", "Sunday":
+        fmt.Println(day, "is a weekend.")
+    default:
+        fmt.Println(day, "is a weekday.")
+    }
+}
+```
+
+**Output:**
+
+```
+Saturday is a weekend.
+```
+
+---
+
+## **Exercise 4: Sum of First N Numbers**
+
+**Problem**: Write a program that calculates the sum of the first `N` natural numbers using a `for` loop.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    N := 5
+    sum := 0
+
+    for i := 1; i <= N; i++ {
+        sum += i
+    }
+
+    fmt.Println("Sum of first", N, "numbers:", sum)
+}
+```
+
+**Output:**
+
+```
+Sum of first 5 numbers: 15
+```
+
+---
+
+## **Exercise 5: Reverse a String**
+
+**Problem**: Write a program that reverses a string using a `for` loop and the `range` keyword.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    str := "GoLang"
+    reversed := ""
+
+    for _, char := range str {
+        reversed = string(char) + reversed
+    }
+
+    fmt.Println("Reversed string:", reversed)
+}
+```
+
+**Output:**
+
+```
+Reversed string: gnaLoG
+```
+
+---
+
+## **Exercise 6: Multiplication Table**
+
+**Problem**: Write a program that prints the multiplication table of a given number up to 10 using a `for` loop.
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    number := 7
+
+    fmt.Println("Multiplication Table for", number)
+    for i := 1; i <= 10; i++ {
+        fmt.Printf("%d x %d = %d
+", number, i, number*i)
+    }
+}
+```
+
+**Output:**
+
+```
+Multiplication Table for 7
+7 x 1 = 7
+7 x 2 = 14
+7 x 3 = 21
+7 x 4 = 28
+7 x 5 = 35
+7 x 6 = 42
+7 x 7 = 49
+7 x 8 = 56
+7 x 9 = 63
+7 x 10 = 70
+```
+
+---
+
+**Summary**
+
+These exercises demonstrate the versatility of control structures in Go. By solving them, you’ve practiced:
+
+- Conditional logic with `if-else` statements.
+- Handling multiple conditions with `switch`.
+- Iterative computations using `for` loops.
+
+Experiment further by combining these constructs to solve more complex problems!
