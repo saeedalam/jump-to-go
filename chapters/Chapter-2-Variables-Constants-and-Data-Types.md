@@ -31,6 +31,14 @@ func main() {
 }
 ```
 
+### **Output:**
+
+```
+Name: John
+Age: 30
+Employed: true
+```
+
 ### **Zero Values in Go**
 
 When a variable is declared but not initialized, Go assigns it a **zero value**:
@@ -53,12 +61,21 @@ func main() {
     var message string
 
     // Print default values of uninitialized variables
-    fmt.Println("Default integer value:", number)   // Output: Default integer value: 0
-    fmt.Println("Default float value:", price)     // Output: Default float value: 0
-    fmt.Println("Default boolean value:", active)  // Output: Default boolean value: false
-    fmt.Println("Default string value:", message)  // Output: Default string value:
+    fmt.Println("Default integer value:", number)
+    fmt.Println("Default float value:", price)
+    fmt.Println("Default boolean value:", active)
+    fmt.Println("Default string value:", message)
 }
 
+```
+
+### **Output:**
+
+```
+Default integer value: 0
+Default float value: 0
+Default boolean value: false
+Default string value:
 ```
 
 ### Explanation
@@ -101,13 +118,12 @@ func main() {
     const daysInWeek = 7
 
     // Print the values of the constants
-    fmt.Println("Pi:", pi)              
-    fmt.Println("Greeting:", greeting)  
+    fmt.Println("Pi:", pi)
+    fmt.Println("Greeting:", greeting)
     fmt.Println("Days in a week:", daysInWeek)
 }
 
 ```
-
 
 ### **Output:**
 
