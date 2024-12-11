@@ -96,15 +96,6 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 
 ---
 
-### **Section 8: Bringing It All Together**
-- [Chapter 19: Final Project](./chapters/Chapter-19-Final-Project.md)
-  - Build a Mini-Application (Task Manager, URL Shortener)
-- [Chapter 20: Next Steps](./chapters/Chapter-20-Next-Steps.md)
-  - Resources for Further Learning
-  - How to Contribute to Open-Source Go Projects
-
----
-
 ## **💡 How to Use This Repository**
 
 ### Step 1: Clone the Repository
