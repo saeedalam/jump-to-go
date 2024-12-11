@@ -283,7 +283,7 @@ Meow!
 
 ---
 
-# **16.9: Exercises**
+# **16.9. Exercises**
 
 ---
 

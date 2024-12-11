@@ -303,7 +303,7 @@ Merged Value: 7
 
 ---
 
-# **12.4: Exercises**
+# **12.4. Exercises**
 
 ## **Exercise 1: Basic Worker Pool**
 

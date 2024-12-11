@@ -217,7 +217,7 @@ Passing a struct by reference avoids copying the entire struct, making the code 
 - **Passing by Reference** allows functions to modify the original variable.
 - Use pointers judiciously to write efficient and clean code.
 
-# **9.10: Exercises **
+# **9.10. Exercises **
 
 ## **Exercise 1: Pointer Basics**
 

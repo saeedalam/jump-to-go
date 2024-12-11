@@ -319,7 +319,7 @@ Timeout!
 
 ---
 
-# **10.10: Exercises**
+# **10.10. Exercises**
 
 ---
 

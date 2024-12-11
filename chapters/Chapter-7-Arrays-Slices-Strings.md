@@ -222,7 +222,7 @@ func main() {
 
 ---
 
-# **Exercises**
+# **7.4. Exercises**
 
 This section contains **10 solved examples** to help you master arrays, slices, and strings in Go. Each exercise is designed to reinforce the concepts learned in the chapter with practical applications and outputs.
 

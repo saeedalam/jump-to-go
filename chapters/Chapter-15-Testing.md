@@ -266,7 +266,7 @@ ok      mathutils       100.0% coverage
 
 ---
 
-# **15.7: Exercises**
+# **15.7. Exercises**
 
 ---
 

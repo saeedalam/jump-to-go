@@ -260,7 +260,7 @@ By mastering these techniques, you can confidently handle file and JSON operatio
 
 ---
 
-# **14.3: Exercises**
+# **14.3. Exercises**
 
 ---
 

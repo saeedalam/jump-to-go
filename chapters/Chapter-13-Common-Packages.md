@@ -265,7 +265,7 @@ Selected: Option A
 - **`time`**: For working with dates, times, and durations.
 - **`math/rand`**: For generating random numbers and shuffling.
 
-# **13.4: Exercises - Common Packages**
+# **13.4. Exercises - Common Packages**
 
 ## **Exercise 1: Table Formatter**
 

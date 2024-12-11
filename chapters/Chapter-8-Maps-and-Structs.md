@@ -291,7 +291,7 @@ In this chapter, you learned:
 - How to define and work with **structs** to create custom types.
 - Practical applications of combining maps and structs for real-world scenarios.
 
-# **8.5: Exercises - Maps and Structs**
+# **8.5. Exercises**
 
 ---
 

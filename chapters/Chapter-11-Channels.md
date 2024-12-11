@@ -350,7 +350,7 @@ Result: 10
 
 ---
 
-# **11.9: Exercises**
+# **11.9. Exercises**
 
 ---
 
