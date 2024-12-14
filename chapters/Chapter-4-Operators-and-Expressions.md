@@ -2,7 +2,7 @@
 
 ---
 
-## **3.1 Arithmetic Operators**
+## **4.1 Arithmetic Operators**
 
 Arithmetic operators in Go are used for basic math operations such as addition, subtraction, multiplication, division, and modulus.
 
@@ -47,7 +47,7 @@ Modulus: 1
 
 ---
 
-## **3.2 Comparison and Logical Operators**
+## **4.2 Comparison and Logical Operators**
 
 ### **Comparison Operators**
 
@@ -105,7 +105,7 @@ func main() {
 
 ---
 
-## **3.3 Assignment Operators**
+## **4.3 Assignment Operators**
 
 Assignment operators are used to update the value of a variable. In Go, you can combine arithmetic and assignment.
 
@@ -149,7 +149,7 @@ func main() {
 
 ---
 
-## **3.4 Type Inference**
+## **4.4 Type Inference**
 
 Go automatically determines the type of a variable when you use short declaration (`:=`).
 
@@ -196,7 +196,7 @@ func main() {
 
 ---
 
-## **3.5 Challenge: Build Expressions**
+## **4.5 Challenge: Build Expressions**
 
 1. Write a program that:
    - Declares three variables (`x`, `y`, and `z`).
@@ -215,7 +215,7 @@ x > z && y < z      true
 
 ---
 
-# **3.6. Exercises**
+# **4.6. Exercises**
 
 ## **Exercise 1: Simple Arithmetic Operations**
 

@@ -2,7 +2,7 @@
 
 ---
 
-## **5.1 Function Syntax**
+## **7.1 Function Syntax**
 
 Functions in Go are declared using the `func` keyword. Here's a simple example:
 
@@ -31,7 +31,7 @@ func main() {
 
 ---
 
-### **5.1.1 Multiple Return Values**
+### **7.1.1 Multiple Return Values**
 
 Go functions can return multiple values. Let’s see an example:
 
@@ -56,7 +56,7 @@ func main() {
 
 ---
 
-## **5.2 Variadic Functions**
+## **7.2 Variadic Functions**
 
 A **variadic function** accepts a variable number of arguments. Use the `...` syntax for the parameter type.
 
@@ -106,9 +106,9 @@ func main() {
 
 ---
 
-## **5.3 Defer, Panic, and Recover**
+## **7.3 Defer, Panic, and Recover**
 
-### **5.3.1 Defer**
+### **7.3.1 Defer**
 
 The `defer` keyword schedules a function to run after the surrounding function completes, even if it exits early.
 
@@ -130,7 +130,7 @@ func main() {
 // End
 ```
 
-### **5.3.2 Panic**
+### **7.3.2 Panic**
 
 `panic` stops the execution of a program and begins unwinding the stack. It’s used for unrecoverable errors.
 
@@ -153,7 +153,7 @@ func main() {
 
 ---
 
-### **5.3.3 Recover**
+### **7.3.3 Recover**
 
 `recover` is used within a `defer` block to handle a panic and resume execution.
 
@@ -181,7 +181,7 @@ func main() {
 
 ---
 
-## **5.4 Practical Exercises**
+## **7.4 Practical Exercises**
 
 This section contains **solved examples** to help you master the concepts of functions, variadic functions, and error handling in Go. Each exercise is accompanied by code, explanations, and expected outputs.
 
@@ -529,7 +529,7 @@ Cube of 3: 27
 
 ---
 
-## **5.5 Summary**
+## **7.5 Summary**
 
 In this chapter, we explored:
 

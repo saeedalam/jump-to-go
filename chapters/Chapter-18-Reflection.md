@@ -2,7 +2,7 @@
 
 ---
 
-## **17.1. What is Reflection?**
+## **18.1. What is Reflection?**
 
 Reflection is the ability of a program to:
 
@@ -25,7 +25,7 @@ Reflection is often used for:
 
 ---
 
-## **17.2. The Reflect Package Basics**
+## **18.2. The Reflect Package Basics**
 
 Let’s start with the basics of the `reflect` package.
 
@@ -66,7 +66,7 @@ Kind: int
 
 ---
 
-## **17.3. Accessing Struct Fields and Tags**
+## **18.3. Accessing Struct Fields and Tags**
 
 Reflection can inspect and manipulate struct fields, including their tags.
 
@@ -110,7 +110,7 @@ Field Name: Age, Type: int, Tag: json:"age"
 
 ---
 
-## **17.4. Setting Values Dynamically**
+## **18.4. Setting Values Dynamically**
 
 Reflection allows us to change values of variables at runtime.
 
@@ -153,7 +153,7 @@ Updated Struct: {Bob 40}
 
 ---
 
-## **17.5. Checking and Invoking Methods Dynamically**
+## **18.5. Checking and Invoking Methods Dynamically**
 
 You can also call methods on objects dynamically using reflection.
 
@@ -189,7 +189,7 @@ Result: 8
 
 ---
 
-## **17.6. Use Case: JSON Validator**
+## **18.6. Use Case: JSON Validator**
 
 Reflection is commonly used to validate struct fields dynamically.
 
@@ -243,7 +243,7 @@ Validation error: Email is required
 
 ---
 
-## **17.7. Reflection Limitations**
+## **18.7. Reflection Limitations**
 
 While powerful, reflection has limitations:
 
@@ -252,7 +252,7 @@ While powerful, reflection has limitations:
 
 ---
 
-## **17.8. Exercises**
+## **18.8. Exercises**
 
 ## **Exercise 1: Inspecting Slice Elements**
 

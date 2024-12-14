@@ -2,11 +2,11 @@
 
 ---
 
-## **14.1 Reading and Writing Files**
+## **15.1 Reading and Writing Files**
 
 Go’s `os` and `io` packages make file handling straightforward. Let’s dive into reading, writing, and appending data to files.
 
-### **14.1.1 Writing to a File**
+### **15.1.1 Writing to a File**
 
 **Example 1: Writing a Simple Text File**
 
@@ -45,7 +45,7 @@ func main() {
 
 ---
 
-### **14.1.2 Reading from a File**
+### **15.1.2 Reading from a File**
 
 **Example 2: Reading a File Line by Line**
 
@@ -84,7 +84,7 @@ Hello, Go! Writing to files is fun.
 
 ---
 
-### **14.1.3 Appending to a File**
+### **15.1.3 Appending to a File**
 
 **Example 3: Adding More Content**
 
@@ -122,11 +122,11 @@ This is an appended line.
 
 ---
 
-## **14.2 Working with JSON**
+## **15.2 Working with JSON**
 
 JSON (JavaScript Object Notation) is a lightweight data-interchange format. In Go, JSON handling is supported by the `encoding/json` package.
 
-### **14.2.1 Encoding JSON**
+### **15.2.1 Encoding JSON**
 
 **Example 4: Struct to JSON**
 
@@ -162,7 +162,7 @@ func main() {
 
 ---
 
-### **14.2.2 Decoding JSON**
+### **15.2.2 Decoding JSON**
 
 **Example 5: JSON to Struct**
 
@@ -199,7 +199,7 @@ Name: Jane Smith, Email: jane.smith@example.com, Age: 25
 
 ---
 
-### **14.2.3 Writing JSON to a File**
+### **15.2.3 Writing JSON to a File**
 
 **Example 6: Save Struct as JSON File**
 
@@ -260,7 +260,7 @@ By mastering these techniques, you can confidently handle file and JSON operatio
 
 ---
 
-# **14.3. Exercises**
+# **15.3. Exercises**
 
 ---
 

@@ -8,7 +8,7 @@ Channels in Go are used to send and receive data between goroutines safely. Thin
 
 ---
 
-## **11.1. Creating Channels**
+## **12.1. Creating Channels**
 
 Channels are created using the `make` function. Here’s the basic syntax:
 
@@ -47,7 +47,7 @@ Hello, Go!
 
 ---
 
-## **11.2. Buffered Channels**
+## **12.2. Buffered Channels**
 
 Buffered channels allow you to specify the number of elements a channel can hold.
 
@@ -78,7 +78,7 @@ func main() {
 
 ---
 
-## **11.3. Using `select`**
+## **12.3. Using `select`**
 
 The `select` statement allows a goroutine to wait on multiple channel operations. It’s like a `switch` for channels.
 
@@ -120,7 +120,7 @@ Channel 1
 
 ---
 
-## **11.4. Default Case in `select`**
+## **12.4. Default Case in `select`**
 
 The `select` statement can have a default case to execute when no channels are ready.
 
@@ -151,7 +151,7 @@ No data received
 
 ---
 
-## **11.5. Closing Channels**
+## **12.5. Closing Channels**
 
 Closing a channel signals that no more data will be sent on it. Receivers can check if a channel is closed using the second value returned by a receive operation.
 
@@ -187,7 +187,7 @@ func main() {
 
 ---
 
-## **11.6. Timeout with `select`**
+## **12.6. Timeout with `select`**
 
 You can use the `time.After` function to implement timeouts with channels.
 
@@ -226,7 +226,7 @@ Timeout
 
 ---
 
-## **11.7. Fan-Out and Fan-In**
+## **12.7. Fan-Out and Fan-In**
 
 Fan-out distributes work across multiple goroutines, and fan-in aggregates results.
 
@@ -275,7 +275,7 @@ Producer 2 2
 
 ---
 
-## **11.8. Real-World Example: Worker Pool**
+## **12.8. Real-World Example: Worker Pool**
 
 ### **Example 8: Implementing a Worker Pool**
 
@@ -350,7 +350,7 @@ Result: 10
 
 ---
 
-# **11.9. Exercises**
+# **12.9. Exercises**
 
 ---
 

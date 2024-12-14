@@ -2,7 +2,7 @@
 
 ---
 
-## **10.1 What Are Goroutines?**
+## **11.1 What Are Goroutines?**
 
 Goroutines are Go's lightweight threads managed by the Go runtime. Unlike traditional threads:
 
@@ -13,7 +13,7 @@ Think of a Goroutine as a function running concurrently with other Goroutines in
 
 ---
 
-## **10.2 Launching Goroutines**
+## **11.2 Launching Goroutines**
 
 To start a Goroutine, simply use the `go` keyword before a function call.
 
@@ -52,7 +52,7 @@ Hello from Goroutine!
 
 ---
 
-## **10.3 Understanding Concurrency**
+## **11.3 Understanding Concurrency**
 
 Goroutines execute independently, but their execution order is unpredictable. This is due to the concurrent nature of Goroutines.
 
@@ -98,7 +98,7 @@ Main: 3
 
 ---
 
-## **10.4 Synchronizing Goroutines**
+## **11.4 Synchronizing Goroutines**
 
 To ensure proper execution of Goroutines, use synchronization techniques like **WaitGroups** from the `sync` package.
 
@@ -146,7 +146,7 @@ All workers finished!
 
 ---
 
-## **10.5 Avoiding Race Conditions**
+## **11.5 Avoiding Race Conditions**
 
 Race conditions occur when multiple Goroutines access shared data simultaneously. Use **Mutex** to prevent this.
 
@@ -192,7 +192,7 @@ Final Counter: 5
 
 ---
 
-## **10.6 Buffered Channels for Communication**
+## **11.6 Buffered Channels for Communication**
 
 Goroutines often need to communicate. Channels provide a way to share data safely.
 
@@ -224,7 +224,7 @@ Hello from Goroutine
 
 ---
 
-## **10.7 Using Select with Channels**
+## **11.7 Using Select with Channels**
 
 `select` allows a Goroutine to wait on multiple communication operations.
 
@@ -272,7 +272,7 @@ Message from ch2
 
 ---
 
-## **10.8 Timeout with Channels**
+## **11.8 Timeout with Channels**
 
 Use `time.After` to implement timeouts with channels.
 
@@ -311,7 +311,7 @@ Timeout!
 
 ---
 
-## **10.9 Best Practices for Goroutines**
+## **11.9 Best Practices for Goroutines**
 
 - Limit Goroutine usage to avoid excessive resource consumption.
 - Always synchronize shared data to prevent race conditions.
@@ -319,7 +319,7 @@ Timeout!
 
 ---
 
-# **10.10. Exercises**
+# **11.10. Exercises**
 
 ---
 

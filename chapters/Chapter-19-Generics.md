@@ -2,7 +2,7 @@
 
 ---
 
-## **18.1. Generic Functions**
+## **19.1. Generic Functions**
 
 Generics enable functions and data structures to operate on multiple types without duplicating code. Instead of writing separate implementations for different types, you can use a **type parameter** to create flexible, type-safe code.
 
@@ -140,7 +140,7 @@ false
 
 ---
 
-## **18.2. Generic Structs**
+## **19.2. Generic Structs**
 
 A **generic struct** uses type parameters to operate on multiple types. This makes structs more flexible and reusable.
 
@@ -272,7 +272,7 @@ func main() {
 
 ---
 
-## **18.3. Exercises**
+## **19.3. Exercises**
 
 ## **Exercise 1: Generic Minimum**
 

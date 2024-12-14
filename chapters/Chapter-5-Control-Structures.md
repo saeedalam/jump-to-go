@@ -2,7 +2,7 @@
 
 ---
 
-## **4.1 If Statements**
+## **5.1 If Statements**
 
 The `if` statement is used to evaluate conditions and execute code blocks accordingly.
 
@@ -56,7 +56,7 @@ func main() {
 
 ---
 
-## **4.2 Switch Statements**
+## **5.2 Switch Statements**
 
 `Switch` statements are a concise way to handle multiple conditions.
 
@@ -118,7 +118,7 @@ Number is between 10 and 20.
 
 ---
 
-## **4.3 Loops**
+## **5.3 Loops**
 
 Go uses `for` as its only loop construct. It can be adapted to different looping patterns.
 
@@ -203,7 +203,7 @@ Count: 2
 
 ---
 
-## **4.4 Type Inference**
+## **5.4 Type Inference**
 
 Go’s type inference lets you declare variables without explicitly specifying their types. The compiler infers the type based on the value assigned.
 

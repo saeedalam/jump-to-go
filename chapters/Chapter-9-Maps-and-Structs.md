@@ -2,7 +2,7 @@
 
 ---
 
-## **8.1. Maps**
+## **9.1. Maps**
 
 A **map** in Go is an unordered collection of key-value pairs, where each key maps to a value. Maps are incredibly useful for quick lookups and organizing related data.
 
@@ -34,7 +34,7 @@ Map: map[a:Apple b:Banana c:Cherry]
 Value for key 'a': Apple
 ```
 
-### **8.1.2 Adding, Updating, and Deleting Elements**
+### **9.1.2 Adding, Updating, and Deleting Elements**
 
 ```go
 package main
@@ -63,7 +63,7 @@ func main() {
 Updated Map: map[b:Blueberry c:Cherry]
 ```
 
-### **8.1.3 Checking if a Key Exists**
+### **9.1.3 Checking if a Key Exists**
 
 ```go
 package main
@@ -88,7 +88,7 @@ func main() {
 Key 'c' does not exist
 ```
 
-### **8.1.4 Iterating Over a Map**
+### **9.1.4 Iterating Over a Map**
 
 ```go
 package main
@@ -114,7 +114,7 @@ Key: c, Value: Cherry
 
 ---
 
-## **8.2. Structs**
+## **9.2. Structs**
 
 A **struct** in Go is a composite data type that groups together fields (variables) under a single name. Structs are the backbone of custom types in Go and are essential for building complex applications.
 
@@ -149,7 +149,7 @@ Name: John
 Age: 30
 ```
 
-### **8.2.2 Using Pointers with Structs**
+### **9.2.2 Using Pointers with Structs**
 
 ```go
 package main
@@ -177,7 +177,7 @@ func main() {
 Updated Person Struct: &{Alice 26}
 ```
 
-### **8.2.3 Structs with Nested Fields**
+### **9.2.3 Structs with Nested Fields**
 
 ```go
 package main
@@ -218,7 +218,7 @@ Person Struct: {Emily 35 {Los Angeles CA}}
 City: Los Angeles
 ```
 
-### **8.2.4 Anonymous Structs**
+### **9.2.4 Anonymous Structs**
 
 ```go
 package main
@@ -247,7 +247,7 @@ Anonymous Struct: {Mia 29}
 
 ---
 
-## **8.3. Practical Example: Combining Maps and Structs**
+## **9.3. Practical Example: Combining Maps and Structs**
 
 ```go
 package main
@@ -283,7 +283,7 @@ ID: 102, Name: Bob, Grade: 85
 
 ---
 
-## **8.4. Summary**
+## **9.4. Summary**
 
 In this chapter, you learned:
 
@@ -291,7 +291,7 @@ In this chapter, you learned:
 - How to define and work with **structs** to create custom types.
 - Practical applications of combining maps and structs for real-world scenarios.
 
-# **8.5. Exercises**
+# **9.5. Exercises**
 
 ---
 

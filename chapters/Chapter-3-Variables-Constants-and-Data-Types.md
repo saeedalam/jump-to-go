@@ -2,7 +2,7 @@
 
 ---
 
-## **2.1 Declaring Variables**
+## \*1 Declaring Variables\*\*
 
 Go offers two primary ways to declare variables: using the `var` keyword or short declarations (`:=`).
 
@@ -99,7 +99,7 @@ This output demonstrates Go's default zero-value initialization for variables th
 
 ---
 
-## **2.2 Constants**
+## **3.2 Constants**
 
 Constants are immutable values defined using the `const` keyword. They can be typed or untyped.
 
@@ -142,7 +142,7 @@ Days in a week: 7
 
 ---
 
-## **2.3 Basic Data Types**
+## **3.3 Basic Data Types**
 
 Go supports several basic data types, including:
 
@@ -182,7 +182,7 @@ func main() {
 
 ---
 
-## **2.4 Type Conversion**
+## **3.4 Type Conversion**
 
 Go requires **explicit type conversion**. This prevents unintended behavior but requires developers to convert types manually.
 

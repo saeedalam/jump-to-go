@@ -2,7 +2,7 @@
 
 ---
 
-## **16.1 What are Interfaces?**
+## **17.1 What are Interfaces?**
 
 An **interface** in Go defines a set of method signatures that a type must implement. It allows you to write flexible and reusable code by decoupling functionality from concrete types.
 
@@ -14,7 +14,7 @@ An **interface** in Go defines a set of method signatures that a type must imple
 
 ---
 
-## **16.2 Defining and Using Interfaces**
+## **17.2 Defining and Using Interfaces**
 
 Let’s start with a simple example.
 
@@ -71,7 +71,7 @@ Shape Area: 12.00
 
 ---
 
-## **16.3 Interfaces in Functions**
+## **17.3 Interfaces in Functions**
 
 ### **Example 2: Using Interfaces in Functions**
 
@@ -127,7 +127,7 @@ Article by: Jane Doe
 
 ---
 
-## **16.4 The Empty Interface**
+## **17.4 The Empty Interface**
 
 The `interface{}` type can hold any value.
 
@@ -159,7 +159,7 @@ Value: 3.14, Type: float64
 
 ---
 
-## **16.5 Type Assertions**
+## **17.5 Type Assertions**
 
 Type assertions allow you to retrieve the underlying value of an interface.
 
@@ -191,7 +191,7 @@ String Value: Hello, Go!
 
 ---
 
-## **16.6 Type Switches**
+## **17.6 Type Switches**
 
 Type switches provide a cleaner way to work with dynamic types.
 
@@ -230,7 +230,7 @@ Unknown Type
 
 ---
 
-## **16.7 Advanced Examples**
+## **17.7 Advanced Examples**
 
 ### **Example 6: Polymorphism with Interfaces**
 
@@ -272,7 +272,7 @@ Meow!
 
 ---
 
-## **16.8 Summary Table**
+## **17.8 Summary Table**
 
 | Feature             | Description                        | Example                                   |
 | ------------------- | ---------------------------------- | ----------------------------------------- |
@@ -283,7 +283,7 @@ Meow!
 
 ---
 
-# **16.9. Exercises**
+# **17.9. Exercises**
 
 ---
 

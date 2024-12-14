@@ -2,7 +2,7 @@
 
 ---
 
-## **7.1 Arrays**
+## **8.1 Arrays**
 
 ### **What Are Arrays?**
 
@@ -63,7 +63,7 @@ Index 4: 50
 
 ---
 
-## **7.2 Slices**
+## **8.2 Slices**
 
 ### **What Are Slices?**
 
@@ -136,7 +136,7 @@ func main() {
 
 ---
 
-## **7.3 Strings**
+## **8.3 Strings**
 
 ### **What Are Strings?**
 
@@ -222,7 +222,7 @@ func main() {
 
 ---
 
-# **7.4. Exercises**
+# **8.4. Exercises**
 
 This section contains **10 solved examples** to help you master arrays, slices, and strings in Go. Each exercise is designed to reinforce the concepts learned in the chapter with practical applications and outputs.
 

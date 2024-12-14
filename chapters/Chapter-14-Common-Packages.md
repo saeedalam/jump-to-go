@@ -2,7 +2,7 @@
 
 ---
 
-## **13.1 The `fmt` Package**
+## **14.1 The `fmt` Package**
 
 The `fmt` package in Go is used for formatted I/O operations like printing to the console or reading input. Let’s explore its capabilities.
 
@@ -82,7 +82,7 @@ Cherry        50
 
 ---
 
-## **13.2 The `time` Package**
+## **14.2 The `time` Package**
 
 The `time` package helps with working with dates and time in Go. It’s incredibly powerful for formatting, measuring durations, and scheduling.
 
@@ -167,7 +167,7 @@ Duration: 2.000123456s
 
 ---
 
-## **13.3 The `math/rand` Package**
+## **14.3 The `math/rand` Package**
 
 The `math/rand` package generates pseudo-random numbers. While not suitable for cryptographic purposes, it’s great for general randomness.
 
@@ -265,7 +265,7 @@ Selected: Option A
 - **`time`**: For working with dates, times, and durations.
 - **`math/rand`**: For generating random numbers and shuffling.
 
-# **13.4. Exercises - Common Packages**
+# **14.4. Exercises - Common Packages**
 
 ## **Exercise 1: Table Formatter**
 

@@ -1,7 +1,7 @@
 # **Chapter 16: Testing in Go**
 ---
 
-## **15.1 Why Test?**
+## **16.1 Why Test?**
 
 Testing ensures that your code:
 
@@ -11,7 +11,7 @@ Testing ensures that your code:
 
 ---
 
-## **15.2 Unit Testing in Go**
+## **16.2 Unit Testing in Go**
 
 ### **The Basics of Unit Testing**
 
@@ -102,7 +102,7 @@ ok      mathutils       0.002s
 
 ---
 
-### **15.3 Testing Edge Cases**
+### **16.3 Testing Edge Cases**
 
 Testing is incomplete without edge cases. Let’s test a function that divides two numbers.
 
@@ -151,7 +151,7 @@ ok      mathutils       0.003s
 
 ---
 
-## **15.4 Benchmarking in Go**
+## **16.4 Benchmarking in Go**
 
 Benchmarking helps you measure the performance of your code. In Go, benchmarks are written as functions starting with `Benchmark` and take a `*testing.B` parameter.
 
@@ -238,7 +238,7 @@ BenchmarkFibIterative-8    20000000    0.75 ns/op
 
 ---
 
-## **15.5 Code Coverage**
+## **16.5 Code Coverage**
 
 Measure how much of your code is covered by tests.
 
@@ -256,7 +256,7 @@ ok      mathutils       100.0% coverage
 
 ---
 
-## **15.6 Summary**
+## **16.6 Summary**
 
 | Concept       | Description                  | Command            |
 | ------------- | ---------------------------- | ------------------ |
@@ -266,7 +266,7 @@ ok      mathutils       100.0% coverage
 
 ---
 
-# **15.7. Exercises**
+# **16.7. Exercises**
 
 ---
 

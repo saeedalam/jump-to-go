@@ -2,7 +2,7 @@
 
 ---
 
-## **12.1. Introduction to Concurrency Patterns**
+## **13.1. Introduction to Concurrency Patterns**
 
 ### Why Use Concurrency Patterns?
 
@@ -12,13 +12,13 @@
 
 ---
 
-## **12.2. Worker Pools**
+## **13.2. Worker Pools**
 
 A **Worker Pool** is a concurrency pattern that processes tasks using a fixed number of worker goroutines. It helps manage resource consumption by limiting the number of goroutines running simultaneously.
 
 ---
 
-### **12.2.1 Worker Pool by Example**
+### **13.2.1 Worker Pool by Example**
 
 #### Problem Statement:
 
@@ -84,7 +84,7 @@ Result: 25
 
 ---
 
-### **12.2.2 Extending Worker Pool**
+### **13.2.2 Extending Worker Pool**
 
 Let’s add error handling. What if some jobs fail?
 
@@ -157,7 +157,7 @@ Result: 1
 
 ---
 
-## **12.3. Fan-In and Fan-Out**
+## **13.3. Fan-In and Fan-Out**
 
 ### What is Fan-In and Fan-Out?
 
@@ -166,7 +166,7 @@ Result: 1
 
 ---
 
-### **12.3.1 Fan-Out by Example**
+### **13.3.1 Fan-Out by Example**
 
 #### Problem Statement:
 
@@ -232,7 +232,7 @@ Result: 25
 
 ---
 
-### **12.3.2 Fan-In by Example**
+### **13.3.2 Fan-In by Example**
 
 #### Problem Statement:
 
@@ -303,7 +303,7 @@ Merged Value: 7
 
 ---
 
-# **12.4. Exercises**
+# **13.4. Exercises**
 
 ## **Exercise 1: Basic Worker Pool**
 
