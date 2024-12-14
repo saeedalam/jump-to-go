@@ -1,4 +1,4 @@
-# **Chapter 12: Concurrency Patterns**
+# **Chapter 13: Concurrency Patterns**
 
 ---
 

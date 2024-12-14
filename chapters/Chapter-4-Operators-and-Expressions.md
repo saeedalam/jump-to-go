@@ -1,4 +1,4 @@
-# **Chapter 3: Operators and Expressions**
+# **Chapter 4: Operators and Expressions**
 
 ---
 
@@ -31,6 +31,16 @@ func main() {
     fmt.Println("Division:", a/b) // Integer division
     fmt.Println("Modulus:", a%b)
 }
+```
+
+### **Output:**
+
+```
+Addition: 13
+Subtraction: 7
+Multiplication: 30
+Division: 3
+Modulus: 1
 ```
 
 **Tip**: Division between integers returns an integer result. Use type conversion if you want floating-point results.
@@ -85,6 +95,13 @@ func main() {
     fmt.Println("!(a == b):", !(a == b))
 }
 ```
+
+### **Output:**
+
+```
+
+```
+
 
 ---
 

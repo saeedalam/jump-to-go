@@ -1,4 +1,4 @@
-# **Understanding Pointers**
+# **Chapter 11. Understanding Pointers**
 
 ## **9.1. Introduction to Pointers**
 

@@ -1,4 +1,4 @@
-# **Chapter 18: Generics (Go 1.18+)**
+# **Chapter 19: Generics (Go 1.18+)**
 
 ---
 

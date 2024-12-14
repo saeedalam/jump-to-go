@@ -1,4 +1,4 @@
-# **Chapter 11: Channels**
+# **Chapter 12: Channels**
 
 ---
 

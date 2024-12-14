@@ -1,4 +1,4 @@
-# **Chapter 2: Variables, Constants, and Data Types**
+# **Chapter 3: Variables, Constants, and Data Types**
 
 ---
 

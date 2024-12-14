@@ -1,4 +1,4 @@
-# **Chapter 16: Interfaces in Go**
+# **Chapter 17: Interfaces in Go**
 
 ---
 

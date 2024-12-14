@@ -1,4 +1,4 @@
-# **Chapter 15: Testing in Go**
+# **Chapter 16: Testing in Go**
 ---
 
 ## **15.1 Why Test?**
