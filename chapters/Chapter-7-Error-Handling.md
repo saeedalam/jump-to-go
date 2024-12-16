@@ -1,11 +1,33 @@
-# **Chapter 6: Error Handling in Go**
+# **Chapter 7: Error Handling in Go**
 
+Error handling is a crucial aspect of any programming language, and Go provides a simple yet powerful way to handle errors. This chapter will take you through the core concepts of error handling in Go, explain them clearly, and then walk you through detailed examples to help you master the technique.
 
-## **6.1 Returning Errors**
+---
 
-### **Example 1: A Simple Division Function**
+### **7.1 Basic Concept of Error Handling in Go**
 
-In Go, functions often return an `error` value along with the primary result.
+In Go, errors are treated as values. Functions that can result in errors usually return two values:
+
+1. The result of the operation (e.g., a number, a string, etc.)
+2. An `error` type, which represents any issues encountered.
+
+The `error` type is an interface that has a single method: `Error() string`. This method returns the error message.
+
+### **Key Points:**
+
+- Errors in Go are usually returned as the second value in a function.
+- You need to check the error explicitly after each operation to handle it properly.
+- Go does not have exceptions, so you handle errors using conditional statements.
+
+---
+
+### **7.2 Returning Errors**
+
+In Go, you can return errors from functions, which allows the caller to handle them appropriately. Let's start by examining a simple example of how errors can be returned from a function.
+
+#### **Example 1: A Simple Division Function**
+
+The `divide` function checks if the divisor is zero. If it is, it returns an error to signal that division by zero is not possible. Otherwise, it returns the result of the division.
 
 ```go
 package main
@@ -32,16 +54,28 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- The `divide` function checks if the divisor (`b`) is zero. If so, it returns an error.
+- In the `main` function, we immediately check the error. If an error is returned, it is printed out. Otherwise, the result of the division is displayed.
+
 **Output:**
+
 ```
 Error: cannot divide by zero
 ```
 
+This example demonstrates the basic error handling pattern in Go: check for an error and handle it.
+
 ---
 
-### **Example 2: Handling Errors with Multiple Return Values**
+### **7.3 Error Handling with Multiple Return Values**
 
-Go encourages checking errors immediately.
+Go encourages returning multiple values, and error handling is no different. Functions often return both the result and an error, which must be checked in the calling code.
+
+#### **Example 2: Handling Errors with Multiple Return Values**
+
+Here’s an example where we try to read from a file. If the file doesn’t exist, an error is returned.
 
 ```go
 package main
@@ -69,18 +103,26 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- The `readFile` function tries to read a file and returns two values: the content of the file and any error that may occur.
+- If an error occurs (such as the file not existing), it is returned to the caller, where it is checked.
+
 **Output:**
+
 ```
 Error: open nonexistent.txt: no such file or directory
 ```
 
 ---
 
-## **6.2 Custom Error Types**
+### **7.4 Custom Error Types**
 
-Sometimes, you need more context in your errors. Go allows you to create custom error types.
+While the built-in `error` type is often sufficient, you can also create custom error types to provide more context or specific information about the error.
 
-### **Example 3: Creating a Custom Error Type**
+#### **Example 3: Creating a Custom Error Type**
+
+In this example, we define a custom error type for division errors, which includes additional details like the dividend and divisor.
 
 ```go
 package main
@@ -118,43 +160,26 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- The `DivideError` struct holds information about the dividend, divisor, and an error message.
+- The `Error` method formats these details into a string, providing a more informative error message.
+
 **Output:**
+
 ```
 error: cannot divide by zero (dividend: 10.00, divisor: 0.00)
 ```
 
 ---
 
-### **Example 4: Checking for Specific Error Types**
+### **7.5 Wrapping Errors for More Context**
 
-You can use **type assertions** to handle specific error types.
+Go allows you to wrap errors with additional context. This helps preserve the original error while providing more details about the issue.
 
-```go
-func main() {
-	_, err := divide(10, 0)
-	if customErr, ok := err.(*DivideError); ok {
-		fmt.Printf("Custom Error: %s
-", customErr.Message)
-		return
-	}
-	fmt.Println("Error:", err)
-}
-```
+#### **Example 4: Wrapping Errors**
 
-**Output:**
-```
-Custom Error: cannot divide by zero
-```
-
----
-
-## **6.3 Error Wrapping and Unwrapping**
-
-Go 1.13 introduced `errors.Is` and `errors.As` to unwrap and compare errors.
-
-### **Example 5: Wrapping Errors**
-
-Use `fmt.Errorf` to add context to errors.
+Here, we wrap a custom error to provide more context about a configuration issue.
 
 ```go
 package main
@@ -173,14 +198,24 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- We use `fmt.Errorf` to wrap an error with additional context. The `%w` verb is used to retain the original error within the new error.
+- This makes it easier to trace the error chain while still providing helpful context.
+
 **Output:**
+
 ```
 failed to read config: file not found: config.yaml
 ```
 
 ---
 
-### **Example 6: Unwrapping Errors with `errors.Unwrap`**
+### **7.6 Unwrapping Errors**
+
+If an error has been wrapped, you can retrieve the original error using `errors.Unwrap`.
+
+#### **Example 5: Unwrapping Errors**
 
 ```go
 package main
@@ -197,7 +232,13 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- `errors.Unwrap` allows you to retrieve the original error that was wrapped.
+- This is useful when you need to inspect or handle the original error separately.
+
 **Output:**
+
 ```
 Full Error: outer error: inner error
 Inner Error: inner error
@@ -205,7 +246,11 @@ Inner Error: inner error
 
 ---
 
-### **Example 7: Checking for Specific Errors with `errors.Is`**
+### **7.7 Checking Specific Errors with `errors.Is`**
+
+You can use `errors.Is` to check if an error matches a specific error type, even if it’s wrapped.
+
+#### **Example 6: Checking for Specific Errors**
 
 ```go
 package main
@@ -229,14 +274,24 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- `errors.Is` checks if a specific error (`ErrPermissionDenied`) is part of the error chain.
+- This allows you to handle specific error types even if they are wrapped in other errors.
+
 **Output:**
+
 ```
 Action failed due to permission issues.
 ```
 
 ---
 
-### **Example 8: Handling Multiple Error Layers with `errors.As`**
+### **7.8 Handling Multiple Error Layers with `errors.As`**
+
+If you need to extract specific error types from a chain of errors, you can use `errors.As`.
+
+#### **Example 7: Handling Multiple Error Layers**
 
 ```go
 package main
@@ -263,39 +318,81 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- `errors.As` checks if the error can be converted to the `ConfigError` type, allowing us to access the specific fields of the error.
+- This is useful when you want to retrieve more context or specific information about an error.
+
 **Output:**
+
 ```
 Specific Error: app.yaml
 ```
 
 ---
 
-## **Summary Table**
+## **7.7 Exercises**
 
-| Feature               | Function / Package         | Example                |
-|-----------------------|---------------------------|-----------------------|
-| Create Basic Error     | `errors.New`              | Example 1             |
-| Return Custom Errors   | Custom Struct + `Error()` | Example 3             |
-| Wrap Errors            | `fmt.Errorf` + `%w`       | Example 5             |
-| Unwrap Errors          | `errors.Unwrap`           | Example 6             |
-| Check Errors           | `errors.Is`               | Example 7             |
-| Extract Specific Error | `errors.As`               | Example 8             |
+### **Exercise 1: Simple File Reading with Error Handling**
 
----
-## **6.7 Practical Exercises**
-
-This section contains **solved examples** to help you master the concepts of error handling, variadic functions, and error handling in Go. Each exercise is accompanied by code, explanations, and expected outputs.
-
-## **Exercise 1: Division with Error Handling**
-
-**Problem**: Write a function `safeDivide` that takes two integers and returns their division result or an error if the denominator is zero.
+**Problem**: Write a function `readLineFromFile` that takes a filename and reads the first line from the file. If the file does not exist, return an appropriate error.
 
 ```go
 package main
 
 import (
-	"errors"
+	"bufio"
 	"fmt"
+	"os"
+)
+
+func readLineFromFile(filename string) (string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		return scanner.Text(), nil
+	}
+	return "", fmt.Errorf("file is empty")
+}
+
+func main() {
+	line, err := readLineFromFile("test.txt")
+	if err != nil {
+		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("First Line:", line)
+	}
+}
+```
+
+**Explanation:**
+
+- The function `readLineFromFile` opens the file, reads the first line, and handles errors.
+- The error is returned if the file can't be opened or if the file is empty.
+
+**Output:**
+
+```
+Error: open test.txt: no such file or directory
+```
+
+---
+
+### **Exercise 2: Division with Zero Error Check**
+
+**Problem**: Write a function `safeDivide` that accepts two integers and returns their division result, handling division by zero errors appropriately.
+
+```go
+package main
+
+import (
+	"fmt"
+	"errors"
 )
 
 func safeDivide(a, b int) (int, error) {
@@ -306,7 +403,7 @@ func safeDivide(a, b int) (int, error) {
 }
 
 func main() {
-	result, err := safeDivide(10, 2)
+	result, err := safeDivide(10, 0)
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
@@ -315,339 +412,157 @@ func main() {
 }
 ```
 
+**Explanation:**
+
+- The `safeDivide` function checks if the divisor is zero, returning an error if so.
+- The result is returned only if the error is nil.
+
 **Output:**
+
 ```
-Result: 5
+Error: division by zero
 ```
 
 ---
 
-## **Exercise 2: File Reading with Error Handling**
+### **Exercise 3: Error Handling in User Input**
 
-**Problem**: Write a function `readFile` that takes a file path and returns its contents or an error if the file doesn’t exist.
+**Problem**: Write a function `getUserInput` that asks the user for an integer input. If the user enters a non-integer value, return an error.
 
 ```go
 package main
 
 import (
 	"fmt"
-	"os"
+	"strconv"
 )
 
-func readFile(filename string) (string, error) {
-	data, err := os.ReadFile(filename)
+func getUserInput() (int, error) {
+	var input string
+	fmt.Print("Enter an integer: ")
+	fmt.Scanln(&input)
+	number, err := strconv.Atoi(input)
 	if err != nil {
-		return "", err
+		return 0, fmt.Errorf("invalid input: %v", err)
 	}
-	return string(data), nil
+	return number, nil
 }
 
 func main() {
-	content, err := readFile("nonexistent.txt")
+	num, err := getUserInput()
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
-		fmt.Println("Content:", content)
+		fmt.Println("You entered:", num)
 	}
 }
 ```
 
+**Explanation:**
+
+- The `getUserInput` function prompts the user to enter an integer and checks if the input can be converted.
+- An error is returned if the input is not a valid integer.
+
 **Output:**
+
 ```
-Error: open nonexistent.txt: no such file or directory
+Enter an integer: abc
+Error: invalid input: strconv.Atoi: parsing "abc": invalid syntax
 ```
 
 ---
 
-## **Exercise 3: Custom Error Type**
+### **Exercise 4: File Copying with Error Handling**
 
-**Problem**: Create a custom error type `MathError` for handling mathematical errors.
+**Problem**: Write a function `copyFile` that copies the contents of one file to another. If the source file does not exist or any other error occurs during copying, handle and return an appropriate error.
 
 ```go
 package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 )
 
-type MathError struct {
-	Operation string
-	Message   string
-}
-
-func (e *MathError) Error() string {
-	return fmt.Sprintf("Math Error in %s: %s", e.Operation, e.Message)
-}
-
-func safeSubtract(a, b int) (int, error) {
-	if b > a {
-		return 0, &MathError{
-			Operation: "Subtraction",
-			Message:   "negative result not allowed",
-		}
-	}
-	return a - b, nil
-}
-
-func main() {
-	_, err := safeSubtract(5, 10)
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
-}
-```
+	defer sourceFile.Close()
 
-**Output:**
-```
-Math Error in Subtraction: negative result not allowed
-```
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
 
----
-
-## **Exercise 4: Wrapping Errors**
-
-**Problem**: Write a function `loadConfig` that wraps errors with context using `fmt.Errorf`.
-
-```go
-package main
-
-import (
-	"fmt"
-)
-
-func loadConfig(filename string) error {
-	return fmt.Errorf("unable to load config: %w", fmt.Errorf("file not found: %s", filename))
-}
-
-func main() {
-	err := loadConfig("config.yaml")
-	fmt.Println(err)
-}
-```
-
-**Output:**
-```
-unable to load config: file not found: config.yaml
-```
-
----
-
-## **Exercise 5: Unwrapping Errors**
-
-**Problem**: Use `errors.Unwrap` to extract the inner error.
-
-```go
-package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-func main() {
-	err := fmt.Errorf("outer error: %w", errors.New("inner error"))
-	fmt.Println("Full Error:", err)
-	fmt.Println("Unwrapped Error:", errors.Unwrap(err))
-}
-```
-
-**Output:**
-```
-Full Error: outer error: inner error
-Unwrapped Error: inner error
-```
-
----
-
-## **Exercise 6: Checking Specific Errors**
-
-**Problem**: Use `errors.Is` to check for specific errors.
-
-```go
-package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-var ErrNotFound = errors.New("not found")
-
-func findResource(id int) error {
-	if id != 1 {
-		return fmt.Errorf("resource lookup failed: %w", ErrNotFound)
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
 func main() {
-	err := findResource(2)
-	if errors.Is(err, ErrNotFound) {
-		fmt.Println("Specific error: resource not found")
-	}
-}
-```
-
-**Output:**
-```
-Specific error: resource not found
-```
-
----
-
-## **Exercise 7: Using `errors.As` for Specific Error Types**
-
-**Problem**: Extract specific error details with `errors.As`.
-
-```go
-package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-type ConfigError struct {
-	File string
-}
-
-func (e *ConfigError) Error() string {
-	return fmt.Sprintf("config error in file %s", e.File)
-}
-
-func loadApp() error {
-	return fmt.Errorf("application failed: %w", &ConfigError{File: "app.yaml"})
-}
-
-func main() {
-	err := loadApp()
-	var configErr *ConfigError
-	if errors.As(err, &configErr) {
-		fmt.Println("Config Error in:", configErr.File)
-	}
-}
-```
-
-**Output:**
-```
-Config Error in: app.yaml
-```
-
----
-
-## **Exercise 8: Reuse Error Types**
-
-**Problem**: Reuse custom error types across different functions.
-
-```go
-package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-var ErrPermissionDenied = errors.New("permission denied")
-
-func openFile(filename string) error {
-	return fmt.Errorf("failed to open file: %w", ErrPermissionDenied)
-}
-
-func saveFile(filename string) error {
-	return fmt.Errorf("failed to save file: %w", ErrPermissionDenied)
-}
-
-func main() {
-	err := openFile("example.txt")
-	if errors.Is(err, ErrPermissionDenied) {
-		fmt.Println("Permission issue while opening the file")
-	}
-
-	err = saveFile("example.txt")
-	if errors.Is(err, ErrPermissionDenied) {
-		fmt.Println("Permission issue while saving the file")
-	}
-}
-```
-
-**Output:**
-```
-Permission issue while opening the file
-Permission issue while saving the file
-```
-
----
-
-## **Exercise 9: Logging Errors**
-
-**Problem**: Log errors with additional context.
-
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-)
-
-func processTask(id int) error {
-	if id < 0 {
-		return fmt.Errorf("invalid task ID: %d", id)
-	}
-	return nil
-}
-
-func main() {
-	err := processTask(-1)
-	if err != nil {
-		log.Printf("Task Processing Failed: %v", err)
-	}
-}
-```
-
-**Output:**
-```
-2024/12/06 12:00:00 Task Processing Failed: invalid task ID: -1
-```
-
----
-
-## **Exercise 10: Graceful Shutdown with Error Handling**
-
-**Problem**: Ensure graceful cleanup during errors.
-
-```go
-package main
-
-import (
-	"errors"
-	"fmt"
-)
-
-func performTask() error {
-	defer fmt.Println("Cleaning up resources...")
-	return errors.New("task failed")
-}
-
-func main() {
-	err := performTask()
+	err := copyFile("source.txt", "destination.txt")
 	if err != nil {
 		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("File copied successfully")
 	}
 }
 ```
 
+**Explanation:**
+
+- The `copyFile` function opens the source file, creates the destination file, and copies the contents.
+- Errors are returned if any file operation fails.
+
 **Output:**
+
 ```
-Cleaning up resources...
-Error: task failed
+Error: open source.txt: no such file or directory
 ```
 
 ---
 
-**Congratulations!** You’ve mastered error handling in Go. These examples cover a wide range of scenarios, helping you build robust and reliable applications.
+### **Exercise 5: Age Validation with Error Handling**
 
+**Problem**: Write a function `validateAge` that checks if an age is within a valid range (0-120). If the age is invalid, return an error.
 
----
+```go
+package main
 
-**Happy Coding!** 💻✨
+import (
+	"fmt"
+	"errors"
+)
+
+func validateAge(age int) error {
+	if age < 0 || age > 120 {
+		return errors.New("invalid age: must be between 0 and 120")
+	}
+	return nil
+}
+
+func main() {
+	err := validateAge(150)
+	if err != nil {
+		fmt.Println("Error:", err)
+	} else {
+		fmt.Println("Age is valid")
+	}
+}
+```
+
+**Explanation:**
+
+- The `validateAge` function checks if the age is within the allowed range. If not, it returns an error.
+
+**Output:**
+
+```
+Error: invalid age: must be between 0 and 120
+```
