@@ -33,11 +33,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- In the above example, a map `fruits` is initialized with string keys and string values.
-- We access the value associated with the key "a" and print it.
-
 **Output:**
 
 ```
@@ -72,12 +67,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- First, we add a new key-value pair for "c".
-- Next, we update the value for the key "b" from "Banana" to "Blueberry".
-- Finally, we delete the key-value pair for "a".
-
 **Output:**
 
 ```
@@ -107,11 +96,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- We attempt to access the key "c" and check if it exists.
-- Since "c" does not exist, we print a message indicating this.
-
 **Output:**
 
 ```
@@ -133,16 +117,10 @@ func main() {
     fruits := map[string]string{"a": "Apple", "b": "Banana", "c": "Cherry"}
 
     for key, value := range fruits {
-        fmt.Printf("Key: %s, Value: %s
-", key, value)
+        fmt.Printf("Key: %s, Value: %s\n", key, value)
     }
 }
 ```
-
-**Explanation:**
-
-- The `for` loop iterates through each key-value pair in the `fruits` map.
-- We print both the key and the value during each iteration.
 
 **Output:**
 
@@ -179,11 +157,9 @@ func main() {
 
 A **struct** is a composite data type in Go that groups together variables (fields) under a single name. Each field in a struct can have a different type. Structs are commonly used to define complex data models that represent real-world entities. Structs are the foundation of custom types in Go and are critical for building robust applications.
 
-Unlike arrays and slices, structs can hold fields of different types, making them extremely versatile.
+---
 
 ### **9.2.1 Declaring and Initializing Structs**
-
-You can define a struct by using the `type` keyword followed by the name of the struct and the fields it will contain. Here's how to declare and initialize a simple struct:
 
 ```go
 package main
@@ -206,11 +182,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- We define a struct `Person` with fields `Name` and `Age`.
-- Then, we initialize a `Person` struct with the name "John" and age 30.
-
 **Output:**
 
 ```
@@ -222,8 +193,6 @@ Age: 30
 ---
 
 ### **9.2.2 Using Pointers with Structs**
-
-In Go, structs are passed by value, meaning when you assign a struct to another variable, a copy of the struct is created. However, you can use pointers to directly modify the struct's fields without creating a copy.
 
 ```go
 package main
@@ -245,10 +214,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- We create a pointer to the `Person` struct and modify the `Age` field directly.
-
 **Output:**
 
 ```
@@ -258,8 +223,6 @@ Updated Person Struct: &{Alice 26}
 ---
 
 ### **9.2.3 Structs with Nested Fields**
-
-Structs can also contain other structs as fields, creating a hierarchy of data. Here's an example of a struct with nested fields:
 
 ```go
 package main
@@ -293,11 +256,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- The `Person` struct contains an `Address` field, which itself is a struct.
-- We initialize both the `Person` and `Address` structs and print the city.
-
 **Output:**
 
 ```
@@ -308,8 +266,6 @@ City: Los Angeles
 ---
 
 ### **9.2.4 Anonymous Structs**
-
-Go also allows the use of anonymous structs, which are structs that do not have a defined name but can still be used inline.
 
 ```go
 package main
@@ -330,10 +286,6 @@ func main() {
 }
 ```
 
-**Explanation:**
-
-- In this example, we define and initialize an anonymous struct without a type name.
-
 **Output:**
 
 ```
@@ -344,7 +296,15 @@ Anonymous Struct: {Mia 29}
 
 ### **9.2.5 Methods on Structs**
 
-You can define methods on structs, which allows you to associate behavior with data. Here's an example where we define a method for the `Person` struct:
+In Go, methods are functions with a special receiver argument. Methods allow you to associate specific functionality or behavior with a type, like structs. This makes your code more modular and reusable.
+
+Struct methods are particularly useful because they enable you to operate on the struct's data directly, creating a clean way to encapsulate logic.
+
+---
+
+## **Example: Greeting a Person**
+
+Here’s an example demonstrating how to define and use a method on a struct:
 
 ```go
 package main
@@ -368,12 +328,47 @@ func main() {
 }
 ```
 
-**Explanation:**
+---
 
-- The `Greet` method is defined on the `Person` struct.
-- We create an instance of `Person` and call the `Greet` method.
+## **Explanation**
 
-**Output:**
+### **1. Struct Definition**
+
+```go
+type Person struct {
+    Name string
+    Age  int
+}
+```
+
+- The `Person` struct represents a person with a `Name` and `Age`.
+
+### **2. Defining a Method**
+
+```go
+func (p Person) Greet() {
+    fmt.Println("Hello, my name is", p.Name)
+}
+```
+
+- The `Greet` method is tied to the `Person` struct through the receiver `(p Person)`.
+- The receiver allows the method to access the struct's fields (`Name` in this case).
+
+### **3. Using the Method**
+
+```go
+person := Person{Name: "John", Age: 30}
+person.Greet()
+```
+
+- A `Person` instance is created with the name "John".
+- The `Greet` method is called on this instance, printing a personalized greeting.
+
+---
+
+## **Output**
+
+When you run the code, you will see the following output:
 
 ```
 Hello, my name is John
@@ -381,9 +376,15 @@ Hello, my name is John
 
 ---
 
-## **9.3. Practical Example: Combining Maps and Structs**
+## **Why Use Methods on Structs?**
 
-Maps and structs can be combined to store complex data in a simple and organized way. Here's an example that uses a map to store `Student` structs:
+- **Encapsulation:** Methods group related data and behavior together.
+- **Clarity:** Improves code readability by associating actions with the relevant type.
+- **Reusability:** Methods can be reused across multiple instances of the struct.
+
+---
+
+## **9.3. Practical Example: Combining Maps and Structs**
 
 ```go
 package main
@@ -405,16 +406,10 @@ func main() {
 
     // Access and print student details
     for id, student := range students {
-        fmt.Printf("ID: %s, Name: %s, Grade: %d
-", id, student.Name, student.Grade)
+        fmt.Printf("ID: %s, Name: %s, Grade: %d\n", id, student.Name, student.Grade)
     }
 }
 ```
-
-**Explanation:**
-
-- We use a map where the key is a student ID, and the value is a `Student` struct containing their name and grade.
-- We iterate over the map and print each student's information.
 
 **Output:**
 
@@ -441,6 +436,8 @@ In this chapter, you learned:
 
 **Problem**: Write a function that takes a string and returns a map containing the frequency of each word.
 
+### **Code**:
+
 ```go
 package main
 
@@ -464,7 +461,13 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. The `strings.Fields` function splits the input text into words.
+2. A map is created to store word frequencies, with each word as a key and its count as the value.
+3. Each word in the text is iterated over, and the count is incremented in the map.
+
+### **Output**:
 
 ```
 Word Frequencies: map[Go:1 hello:2 world:1]
@@ -475,6 +478,8 @@ Word Frequencies: map[Go:1 hello:2 world:1]
 ## **Exercise 2: Updating a Map**
 
 **Problem**: Create a map of student grades, add new entries, update existing grades, and delete a student.
+
+### **Code**:
 
 ```go
 package main
@@ -495,7 +500,13 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. A map of grades is initialized with two entries.
+2. A new entry for "Charlie" is added, and "Alice's" grade is updated.
+3. The `delete` function removes "Bob" from the map.
+
+### **Output**:
 
 ```
 Updated Grades: map[Alice:95 Charlie:75]
@@ -506,6 +517,8 @@ Updated Grades: map[Alice:95 Charlie:75]
 ## **Exercise 3: Check Key Existence**
 
 **Problem**: Write a function to check if a key exists in a map.
+
+### **Code**:
 
 ```go
 package main
@@ -524,7 +537,12 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. The `keyExists` function uses the second return value of map access to determine key existence.
+2. If the key exists, `exists` is `true`; otherwise, it’s `false`.
+
+### **Output**:
 
 ```
 Key 'Alice' exists: true
@@ -536,6 +554,8 @@ Key 'Charlie' exists: false
 ## **Exercise 4: Struct Initialization and Access**
 
 **Problem**: Create a `Book` struct with fields `Title`, `Author`, and `Year`, and initialize and print its values.
+
+### **Code**:
 
 ```go
 package main
@@ -554,7 +574,12 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. A struct `Book` is defined with three fields.
+2. An instance of `Book` is created with specific values and printed.
+
+### **Output**:
 
 ```
 Book Details: {1984 George Orwell 1949}
@@ -565,6 +590,8 @@ Book Details: {1984 George Orwell 1949}
 ## **Exercise 5: Nested Structs**
 
 **Problem**: Create a `Car` struct with a nested `Engine` struct, and initialize and print its fields.
+
+### **Code**:
 
 ```go
 package main
@@ -591,11 +618,17 @@ func main() {
             Type:       "Electric",
         },
     }
+
     fmt.Println("Car Details:", car)
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. The `Car` struct contains an `Engine` struct as a nested field.
+2. Both structs are initialized with values and printed.
+
+### **Output**:
 
 ```
 Car Details: {Tesla Model S {1020 Electric}}
@@ -606,6 +639,8 @@ Car Details: {Tesla Model S {1020 Electric}}
 ## **Exercise 6: Map of Structs**
 
 **Problem**: Create a map of employee IDs to `Employee` structs and iterate through the map.
+
+### **Code**:
 
 ```go
 package main
@@ -624,13 +659,17 @@ func main() {
     }
 
     for id, emp := range employees {
-        fmt.Printf("ID: %s, Name: %s, Position: %s
-", id, emp.Name, emp.Position)
+        fmt.Printf("ID: %s, Name: %s, Position: %s\n", id, emp.Name, emp.Position)
     }
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. A map of employee IDs to `Employee` structs is created.
+2. A `for` loop iterates over the map to print each entry.
+
+### **Output**:
 
 ```
 ID: E001, Name: Alice, Position: Manager
@@ -642,6 +681,8 @@ ID: E002, Name: Bob, Position: Developer
 ## **Exercise 7: Anonymous Structs in Maps**
 
 **Problem**: Create a map using anonymous structs as values.
+
+### **Code**:
 
 ```go
 package main
@@ -658,13 +699,17 @@ func main() {
     }
 
     for name, details := range products {
-        fmt.Printf("Product: %s, Price: %.2f, Quantity: %d
-", name, details.Price, details.Quantity)
+        fmt.Printf("Product: %s, Price: %.2f, Quantity: %d\n", name, details.Price, details.Quantity)
     }
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. Anonymous structs are used as values in a map to store product details.
+2. The map is iterated over to print product information.
+
+### **Output**:
 
 ```
 Product: Laptop, Price: 999.99, Quantity: 10
@@ -676,6 +721,8 @@ Product: Phone, Price: 599.99, Quantity: 20
 ## **Exercise 8: Pointer to Struct**
 
 **Problem**: Use a pointer to a struct to modify its fields.
+
+### **Code**:
 
 ```go
 package main
@@ -694,7 +741,12 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. A pointer to the `Person` struct is created and used to modify the `Age` field.
+2. The updated struct is printed.
+
+### **Output**:
 
 ```
 Updated Person: {Alice 26}
@@ -705,6 +757,8 @@ Updated Person: {Alice 26}
 ## **Exercise 9: Adding and Removing Map Entries**
 
 **Problem**: Write a function to add and remove entries in a map.
+
+### **Code**:
 
 ```go
 package main
@@ -723,7 +777,12 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. The `modifyMap` function adds a new key-value pair and deletes an existing one.
+2. The updated map is printed.
+
+### **Output**:
 
 ```
 Modified Map: map[existing:75 new:100]
@@ -734,6 +793,8 @@ Modified Map: map[existing:75 new:100]
 ## **Exercise 10: Combining Maps and Structs**
 
 **Problem**: Create a program that uses maps to store and retrieve `Student` struct data.
+
+### **Code**:
 
 ```go
 package main
@@ -752,13 +813,17 @@ func main() {
     }
 
     for id, student := range students {
-        fmt.Printf("ID: %s, Name: %s, Grade: %d
-", id, student.Name, student.Grade)
+        fmt.Printf("ID: %s, Name: %s, Grade: %d\n", id, student.Name, student.Grade)
     }
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. A map stores student IDs as keys and `Student` structs as values.
+2. The map is iterated over to display each student's information.
+
+### **Output**:
 
 ```
 ID: S001, Name: Alice, Grade: 90
@@ -770,6 +835,8 @@ ID: S002, Name: Bob, Grade: 85
 ## **Exercise 11: Adding Methods to Structs**
 
 **Problem**: Create a `Person` struct with a method `Introduce` that prints the name and age of the person.
+
+### **Code**:
 
 ```go
 package main
@@ -783,8 +850,7 @@ type Person struct {
 
 // Method for the Person struct
 func (p Person) Introduce() {
-    fmt.Printf("Hi, I'm %s and I'm %d years old.
-", p.Name, p.Age)
+    fmt.Printf("Hi, I'm %s and I'm %d years old.\n", p.Name, p.Age)
 }
 
 func main() {
@@ -793,7 +859,12 @@ func main() {
 }
 ```
 
-**Output:**
+### **Explanation**:
+
+1. The `Introduce` method is defined for the `Person` struct, which accesses its fields.
+2. The method is called on an instance of `Person` to display the introduction.
+
+### **Output**:
 
 ```
 Hi, I'm John and I'm 30 years old.

@@ -803,4 +803,3 @@ Closing image file: picture.jpg
 
 ---
 
-**These exercises cover modern, real-world scenarios of using interfaces in Go!**

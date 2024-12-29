@@ -1,8 +1,8 @@
-# **Chapter 10: Goroutines**
+# **Chapter 11: Goroutines**
 
 ---
 
-## **10.1 What Are Goroutines?**
+## **11.1 What Are Goroutines?**
 
 Goroutines are Go's lightweight threads managed by the Go runtime. Unlike traditional threads:
 
@@ -13,11 +13,11 @@ Think of a Goroutine as a function running concurrently with other Goroutines in
 
 ---
 
-## **10.2 Launching Goroutines**
+## **11.2 Launching Goroutines**
 
 In Go, launching a Goroutine is as simple as placing the `go` keyword before a function call. When you use `go` before a function, Go starts that function as a Goroutine and immediately moves on to the next instruction in the calling function, without waiting for the Goroutine to finish.
 
-### **Example 1: Starting a Simple Goroutine**
+### **Example: Starting a Simple Goroutine**
 
 ```go
 package main
@@ -41,7 +41,7 @@ func main() {
 **Explanation:**
 
 - The `go` keyword starts the `sayHello` function as a Goroutine.
-- The `main` function continues executing without waiting for the Goroutine to complete, unless explicitly synchronized.
+- The `main` function continues executing without waiting for the Goroutine to complete unless explicitly synchronized.
 - The `time.Sleep` is used to give the Goroutine enough time to execute before the program ends.
 
 **Output:**
@@ -53,11 +53,11 @@ Hello from Goroutine!
 
 ---
 
-## **10.3 Understanding Concurrency**
+## **11.3 Understanding Concurrency**
 
 Goroutines execute independently and concurrently. This means that the execution order of Goroutines is unpredictable, and it depends on how the Go runtime schedules them. This is an essential concept when dealing with concurrency: Goroutines can run in any order, and we cannot assume that one will finish before the other.
 
-### **Example 2: Multiple Goroutines**
+### **Example: Multiple Goroutines**
 
 ```go
 package main
@@ -100,11 +100,11 @@ Main: 3
 
 ---
 
-## **10.4 Synchronizing Goroutines**
+## **11.4 Synchronizing Goroutines**
 
 While Goroutines run concurrently, sometimes you need to synchronize them to ensure proper execution. One common way to synchronize Goroutines is by using **WaitGroups** from the `sync` package. A WaitGroup allows you to wait for a collection of Goroutines to finish before proceeding.
 
-### **Example 3: Using WaitGroup**
+### **Example: Using WaitGroup**
 
 ```go
 package main
@@ -156,11 +156,11 @@ All workers finished!
 
 ---
 
-## **10.5 Avoiding Race Conditions**
+## **11.5 Avoiding Race Conditions**
 
 Race conditions occur when multiple Goroutines access shared data simultaneously, leading to unpredictable results. To avoid race conditions, use a **Mutex**, which provides mutual exclusion, ensuring that only one Goroutine can access the shared resource at a time.
 
-### **Example 4: Preventing Race Conditions**
+### **Example: Preventing Race Conditions**
 
 ```go
 package main
@@ -208,152 +208,20 @@ Final Counter: 5
 
 ---
 
-## **10.6 Buffered Channels for Communication**
+## **11.6 Goroutines Best Practices**
 
-Goroutines often need to communicate. Channels are used for safe data exchange between Goroutines. A **buffered channel** allows you to specify a maximum number of messages that can be stored in the channel at a time.
-
-### **Example 5: Simple Channel Communication**
-
-```go
-package main
-
-import "fmt"
-
-func sendMessages(ch chan string) {
-	ch <- "Hello from Goroutine"
-}
-
-func main() {
-	ch := make(chan string)
-
-	go sendMessages(ch)
-	msg := <-ch // Receive message from channel
-	fmt.Println(msg)
-}
-```
-
-**Explanation:**
-
-- A Goroutine sends a message through the channel `ch`.
-- The `main` function receives the message from the channel and prints it.
-
-**Output:**
-
-```
-Hello from Goroutine
-```
+1. **Avoid Too Many Goroutines:** While Goroutines are lightweight, launching too many can still overwhelm the system. Use worker pools or limit the number of active Goroutines.
+2. **Use Synchronization Tools:** Employ `sync.WaitGroup` or `sync.Mutex` to properly synchronize Goroutines and avoid race conditions.
+3. **Monitor Resource Usage:** Debugging tools like `runtime.NumGoroutine()` can help you track the number of active Goroutines and ensure efficient resource management.
+4. **Understand Concurrency:** Be mindful of the unpredictable execution order and use synchronization techniques where necessary.
 
 ---
 
-## **10.7 Using Select with Channels**
+## **11.7 Exercises**
 
-The `select` statement allows a Goroutine to wait on multiple communication operations. It's similar to a `switch` but works with channels.
+### **Exercise 1: Launch Multiple Goroutines**
 
-### **Example 6: Using Select**
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	ch1 := make(chan string)
-	ch2 := make(chan string)
-
-	go func() {
-		time.Sleep(1 * time.Second)
-		ch1 <- "Message from ch1"
-	}()
-
-	go func() {
-		time.Sleep(2 * time.Second)
-		ch2 <- "Message from ch2"
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case msg1 := <-ch1:
-			fmt.Println(msg1)
-		case msg2 := <-ch2:
-			fmt.Println(msg2)
-		}
-	}
-}
-```
-
-**Explanation:**
-
-- The `select` statement waits for messages from either `ch1` or `ch2` and processes the first one to arrive.
-- This allows Goroutines to react to multiple channels.
-
-**Output:**
-
-```
-Message from ch1
-Message from ch2
-```
-
----
-
-## **10.8 Timeout with Channels**
-
-You can use `time.After` to implement a timeout in Go, which is useful when you want to limit the waiting time for receiving a message from a channel.
-
-### **Example 7: Timeout Example**
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	ch := make(chan string)
-
-	go func() {
-		time.Sleep(3 * time.Second)
-		ch <- "Delayed Message"
-	}()
-
-	select {
-	case msg := <-ch:
-		fmt.Println(msg)
-	case <-time.After(2 * time.Second):
-		fmt.Println("Timeout!")
-	}
-}
-```
-
-**Explanation:**
-
-- The `select` statement waits for a message from the channel `ch`, but if it doesn't arrive within the specified time (`2 * time.Second`), the "Timeout!" message is printed.
-
-**Output:**
-
-```
-Timeout!
-```
-
----
-
-## **10.9 Best Practices for Goroutines**
-
-- **Limit Goroutines:** Avoid launching too many Goroutines, as they consume system resources.
-- **Synchronize Data Access:** Always synchronize access to shared data to avoid race conditions.
-- **Use Channels:** Channels provide a safe and efficient way for Goroutines to communicate.
-
-# **11.10. Exercises**
-
----
-
-## **Exercise 1: Launch Multiple Goroutines**
-
-**Problem**: Write a program that launches 5 Goroutines, each printing its ID.
+**Problem:** Write a program that launches 5 Goroutines, each printing its ID.
 
 ```go
 package main
@@ -377,21 +245,17 @@ func main() {
 }
 ```
 
-**Output (Example):**
+**Explanation:**
 
-```
-Goroutine 1 running
-Goroutine 2 running
-Goroutine 3 running
-Goroutine 4 running
-Goroutine 5 running
-```
+- The `printID` function prints the ID of a Goroutine and simulates work with `time.Sleep`.
+- `go` launches the `printID` function as a Goroutine.
+- `time.Sleep` in `main` ensures the main Goroutine waits for all other Goroutines to complete.
 
 ---
 
-## **Exercise 2: Synchronize with WaitGroup**
+### **Exercise 2: Synchronize with WaitGroup**
 
-**Problem**: Use a `WaitGroup` to ensure all Goroutines complete before the program exits.
+**Problem:** Use a `WaitGroup` to ensure all Goroutines complete before the program exits.
 
 ```go
 package main
@@ -422,23 +286,18 @@ func main() {
 }
 ```
 
-**Output:**
+**Explanation:**
 
-```
-Worker 1 started
-Worker 2 started
-Worker 3 started
-Worker 1 finished
-Worker 2 finished
-Worker 3 finished
-All workers completed!
-```
+- A `WaitGroup` ensures all workers finish before `main` exits.
+- `wg.Add(1)` adds to the count of workers.
+- `defer wg.Done()` decrements the count when a worker finishes.
+- `wg.Wait()` blocks until all workers are done.
 
 ---
 
-## **Exercise 3: Avoid Race Conditions**
+### **Exercise 3: Avoid Race Conditions**
 
-**Problem**: Safely increment a shared counter using a `Mutex`.
+**Problem:** Safely increment a shared counter using a `Mutex`.
 
 ```go
 package main
@@ -473,290 +332,51 @@ func main() {
 }
 ```
 
-**Output:**
+**Explanation:**
 
-```
-Final Counter Value: 5
-```
-
----
-
-## **Exercise 4: Simple Channel Communication**
-
-**Problem**: Send and receive messages between Goroutines using channels.
-
-```go
-package main
-
-import "fmt"
-
-func sendMessage(ch chan string) {
-	ch <- "Hello from Goroutine!"
-}
-
-func main() {
-	ch := make(chan string)
-	go sendMessage(ch)
-	msg := <-ch
-	fmt.Println(msg)
-}
-```
-
-**Output:**
-
-```
-Hello from Goroutine!
-```
+- A `Mutex` prevents race conditions by ensuring only one Goroutine modifies `counter` at a time.
+- `mu.Lock()` locks the critical section, and `mu.Unlock()` releases it.
 
 ---
 
-## **Exercise 5: Buffered Channel**
+### **Exercise 4: Measure Goroutines**
 
-**Problem**: Use a buffered channel to hold multiple messages.
-
-```go
-package main
-
-import "fmt"
-
-func main() {
-	ch := make(chan string, 2)
-	ch <- "Message 1"
-	ch <- "Message 2"
-
-	fmt.Println(<-ch)
-	fmt.Println(<-ch)
-}
-```
-
-**Output:**
-
-```
-Message 1
-Message 2
-```
-
----
-
-## **Exercise 6: Using Select with Channels**
-
-**Problem**: Write a program that uses `select` to handle multiple channels.
+**Problem:** Count and print the number of active Goroutines.
 
 ```go
 package main
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 )
 
-func main() {
-	ch1 := make(chan string)
-	ch2 := make(chan string)
-
-	go func() {
-		time.Sleep(1 * time.Second)
-		ch1 <- "From Channel 1"
-	}()
-
-	go func() {
-		time.Sleep(2 * time.Second)
-		ch2 <- "From Channel 2"
-	}()
-
-	for i := 0; i < 2; i++ {
-		select {
-		case msg1 := <-ch1:
-			fmt.Println(msg1)
-		case msg2 := <-ch2:
-			fmt.Println(msg2)
-		}
-	}
-}
-```
-
-**Output:**
-
-```
-From Channel 1
-From Channel 2
-```
-
----
-
-## **Exercise 7: Implement Timeout with Channels**
-
-**Problem**: Use `time.After` to implement a timeout while waiting for channel input.
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	ch := make(chan string)
-
-	go func() {
-		time.Sleep(3 * time.Second)
-		ch <- "Delayed Message"
-	}()
-
-	select {
-	case msg := <-ch:
-		fmt.Println(msg)
-	case <-time.After(2 * time.Second):
-		fmt.Println("Timeout!")
-	}
-}
-```
-
-**Output:**
-
-```
-Timeout!
-```
-
----
-
-## **Exercise 8: Worker Pool**
-
-**Problem**: Create a worker pool with Goroutines and channels.
-
-```go
-package main
-
-import (
-	"fmt"
-	"sync"
-)
-
-func worker(id int, jobs <-chan int, results chan<- int) {
-	for j := range jobs {
-		fmt.Printf("Worker %d processing job %d
-", id, j)
-		results <- j * 2
-	}
+func doWork() {
+	time.Sleep(1 * time.Second)
 }
 
 func main() {
-	const numJobs = 5
-	jobs := make(chan int, numJobs)
-	results := make(chan int, numJobs)
-
-	for w := 1; w <= 3; w++ {
-		go worker(w, jobs, results)
+	for i := 0; i < 5; i++ {
+		go doWork()
 	}
-
-	for j := 1; j <= numJobs; j++ {
-		jobs <- j
-	}
-	close(jobs)
-
-	for a := 1; a <= numJobs; a++ {
-		fmt.Println("Result:", <-results)
-	}
-}
-```
-
-**Output:**
-
-```
-Worker 1 processing job 1
-Worker 2 processing job 2
-...
-Result: 2
-Result: 4
-...
-```
-
----
-
-## **Exercise 9: Fan-In Channel**
-
-**Problem**: Combine multiple input channels into one output channel.
-
-```go
-package main
-
-import "fmt"
-
-func fanIn(ch1, ch2 <-chan string, output chan<- string) {
-	go func() {
-		for msg := range ch1 {
-			output <- msg
-		}
-	}()
-	go func() {
-		for msg := range ch2 {
-			output <- msg
-		}
-	}()
-}
-
-func main() {
-	ch1 := make(chan string)
-	ch2 := make(chan string)
-	output := make(chan string)
-
-	go func() {
-		ch1 <- "Message from ch1"
-		close(ch1)
-	}()
-	go func() {
-		ch2 <- "Message from ch2"
-		close(ch2)
-	}()
-
-	fanIn(ch1, ch2, output)
-
-	for i := 0; i < 2; i++ {
-		fmt.Println(<-output)
-	}
-}
-```
-
-**Output:**
-
-```
-Message from ch1
-Message from ch2
-```
-
----
-
-## **Exercise 10: Goroutines with Anonymous Functions**
-
-**Problem**: Launch Goroutines with anonymous functions.
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	for i := 1; i <= 3; i++ {
-		go func(id int) {
-			fmt.Printf("Goroutine %d running
-", id)
-			time.Sleep(500 * time.Millisecond)
-		}(i)
-	}
+	fmt.Printf("Number of Goroutines: %d
+", runtime.NumGoroutine())
 	time.Sleep(2 * time.Second)
+	fmt.Printf("Number of Goroutines after sleep: %d
+", runtime.NumGoroutine())
 }
 ```
 
-**Output:**
+**Explanation:**
 
-```
-Goroutine 1 running
-Goroutine 2 running
-Goroutine 3 running
-```
+- The `runtime.NumGoroutine()` function returns the current number of active Goroutines.
+- Goroutines that finish reduce the count automatically.
 
 ---
+
+## **Key Takeaways**
+
+- Goroutines enable lightweight concurrency in Go, allowing thousands of tasks to run concurrently.
+- Synchronization tools like `WaitGroup` and `Mutex` are critical for coordinating Goroutines and preventing race conditions.
+- Efficient use of Goroutines can lead to high-performance, scalable applications.

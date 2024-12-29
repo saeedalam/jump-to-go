@@ -27,6 +27,8 @@ A **Worker Pool** is a concurrency pattern that processes tasks using a fixed nu
 - Workers **fetch jobs** from the job queue and process them in parallel, while putting results into a result channel.
 - This pattern improves system efficiency and allows for easy scaling by adjusting the number of workers.
 
+---
+
 ### **13.2.1 Worker Pool by Example**
 
 #### Problem Statement:
@@ -85,7 +87,7 @@ func main() {
 
 #### **Expected Output:**
 
-```plaintext
+```
 Worker 1 processing job 1
 Worker 2 processing job 2
 Worker 3 processing job 3
@@ -169,7 +171,7 @@ func main() {
 
 #### **Expected Output:**
 
-```plaintext
+```
 Worker 1 processing job 1
 Worker 2 processing job 2
 Worker 3 processing job 3
@@ -249,7 +251,7 @@ func main() {
 
 #### **Expected Output:**
 
-```plaintext
+```
 Worker 1 squaring 1
 Worker 2 squaring 2
 Worker 3 squaring 3
@@ -330,7 +332,7 @@ func main() {
 
 #### **Expected Output:**
 
-```plaintext
+```
 Merged Value: 1
 Merged Value: 6
 Merged Value: 2
@@ -700,177 +702,6 @@ func main() {
 ```plaintext
 Processed: 2
 Processed: 4
-```
-
----
-
-## **Exercise 7: Channel Broadcasting**
-
-**Problem**: Implement a broadcasting mechanism where multiple receivers get the same message.
-
-```go
-package main
-
-import "fmt"
-
-func broadcast(ch1 <-chan string, ch2 <-chan string) {
-	for {
-		select {
-		case msg1 := <-ch1:
-			fmt.Println("Receiver 1 got:", msg1)
-		case msg2 := <-ch2:
-			fmt.Println("Receiver 2 got:", msg2)
-		}
-	}
-}
-
-func main() {
-	ch1 := make(chan string)
-	ch2 := make(chan string)
-
-	go broadcast(ch1, ch2)
-
-	ch1 <- "Hello from channel 1"
-	ch2 <- "Hello from channel 2"
-}
-```
-
-**Expected Output**:
-
-```plaintext
-Receiver 1 got: Hello from channel 1
-Receiver 2 got: Hello from channel 2
-```
-
----
-
-## **Exercise 8: Implementing a Rate Limiter**
-
-**Problem**: Create a simple rate limiter using channels.
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	rateLimit := time.Tick(1 * time.Second)
-
-	for i := 0; i < 5; i++ {
-		<-rateLimit
-		fmt.Println("Action", i+1)
-	}
-}
-```
-
-**Expected Output**:
-
-```plaintext
-Action 1
-Action 2
-Action 3
-Action 4
-Action 5
-```
-
----
-
-## **Exercise 9: Concurrent Map Updates**
-
-**Problem**: Safely update a map from multiple goroutines.
-
-```go
-package main
-
-import (
-	"fmt"
-	"sync"
-)
-
-func main() {
-	m := make(map[string]int)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			mu.Lock()
-			m[fmt.Sprintf("key%d", i)] = i
-			mu.Unlock()
-		}(i)
-	}
-
-	wg.Wait()
-	fmt.Println("Map:", m)
-}
-```
-
-**Expected Output**:
-
-```plaintext
-Map: map[key0:0 key1:1 key2:2 key3:3 key4:4]
-```
-
----
-
-## **Exercise 10: Worker Pool with Queue**
-
-**Problem**: Implement a worker pool where each worker takes tasks from a queue.
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func worker(id int, tasks <-chan int, results chan<- int) {
-	for task := range tasks {
-		fmt.Printf("Worker %d processing task %d
-", id, task)
-		time.Sleep(1 * time.Second)
-		results <- task * 2
-	}
-}
-
-func main() {
-	tasks := make(chan int, 5)
-	results := make(chan int, 5)
-
-	for i := 1; i <= 3; i++ {
-		go worker(i, tasks, results)
-	}
-
-	for i := 1; i <= 5; i++ {
-		tasks <- i
-	}
-	close(tasks)
-
-	for i := 1; i <= 5; i++ {
-		fmt.Println("Result:", <-results)
-	}
-}
-```
-
-**Expected Output**:
-
-```plaintext
-Worker 1 processing task 1
-Worker 2 processing task 2
-Worker 3 processing task 3
-Worker 1 processing task 4
-Worker 2 processing task 5
-Result: 2
-Result: 4
-Result: 6
-Result: 8
-Result: 10
 ```
 
 ---
