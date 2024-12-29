@@ -1,8 +1,8 @@
-# **Chapter 11. Understanding Pointers**
+# **Chapter 10. Understanding Pointers**
 
 ---
 
-## **11.1. Introduction to Pointers**
+## **10.1. Introduction to Pointers**
 
 A **pointer** is a variable that stores the memory address of another variable. Instead of working with the value directly, you manipulate its address. This allows you to modify data in-place and avoid unnecessary copying.
 
@@ -16,7 +16,7 @@ Pointers are used extensively in Go for working with large structures or for mod
 
 ---
 
-## **11.2. Declaring and Using Pointers**
+## **10.2. Declaring and Using Pointers**
 
 Let’s start with the basics of pointers and understand how they are declared and used.
 
@@ -61,7 +61,7 @@ func main() {
 
 ---
 
-## **11.3. Passing by Value**
+## **10.3. Passing by Value**
 
 In Go, function arguments are **passed by value** by default. This means that the function receives a copy of the variable, and modifications inside the function do not affect the original value.
 
@@ -93,7 +93,7 @@ The original `num` variable is unchanged because `val` is a copy of `num`. This 
 
 ---
 
-## **11.4. Passing by Reference**
+## **10.4. Passing by Reference**
 
 To modify the original variable, you need to pass its **address** to the function. This allows the function to work with the original value rather than a copy.
 
@@ -125,7 +125,7 @@ By passing the address of `num` (using `&num`), the function modifies the origin
 
 ---
 
-## **11.5. Comparing Value vs. Reference**
+## **10.5. Comparing Value vs. Reference**
 
 | **Aspect**             | **Passing by Value**                          | **Passing by Reference**                              |
 | ---------------------- | --------------------------------------------- | ----------------------------------------------------- |
@@ -135,7 +135,7 @@ By passing the address of `num` (using `&num`), the function modifies the origin
 
 ---
 
-## **11.6. Real-World Example: Swapping Two Numbers**
+## **10.6. Real-World Example: Swapping Two Numbers**
 
 Pointers are useful for performing operations that require in-place changes. For example, we can use pointers to swap the values of two variables without needing temporary variables.
 
@@ -166,7 +166,7 @@ Pointers enable efficient in-place swaps. By passing the memory addresses of `x`
 
 ---
 
-## **11.7. Common Pitfalls with Pointers**
+## **10.7. Common Pitfalls with Pointers**
 
 Pointers can introduce some challenges, especially when they are not properly handled.
 
@@ -195,7 +195,7 @@ Always initialize pointers before dereferencing them to avoid runtime errors. If
 
 ---
 
-## **11.8. Using Pointers with Structs**
+## **10.8. Using Pointers with Structs**
 
 Pointers are particularly useful when working with structs, especially when you need to modify struct fields or pass large structs around.
 
@@ -231,14 +231,14 @@ Passing a struct by reference (using pointers) avoids copying the entire struct,
 
 ---
 
-## **11.9. Summary**
+## **10.9. Summary**
 
 - **Pointers** enable direct manipulation of variables through their memory addresses.
 - **Passing by Value** creates a copy of the data, leaving the original unchanged.
 - **Passing by Reference** allows functions to modify the original variable by working with its memory address.
 - Use pointers judiciously to write efficient and clean code, particularly when modifying large data structures or working with structs.
 
-# **11.10. Exercises with Explanations**
+# **10.10. Exercises**
 
 ## **Exercise 1: Pointer Basics**
 
