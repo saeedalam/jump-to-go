@@ -15,7 +15,7 @@ Clean code is more than just working code—it is code that is easy to read, und
 
 ## **22.2. The Fifteen Rules for Clean Code**
 
-Here are 15 essential rules to ensure clean and maintainable code, along with examples and explanations.
+Here are some essential rules to ensure clean and maintainable code, along with examples and explanations.
 
 ---
 
@@ -441,13 +441,9 @@ counter++
 
 ---
 
-## **22.3. Conclusion**
 
-By following these 15 rules, you can significantly improve the quality of your codebase. Clean code is easier to read, maintain, and extend, making development more enjoyable and efficient.
 
----
-
-## **22.4. Exercises: Clean Code in Practice**
+## **22.4. Exercises**
 
 Here are 15 exercises designed to help you practice writing clean code. Each exercise provides:
 
@@ -948,7 +944,3 @@ fmt.Println(categorizePrice(price))
 Encapsulating logic in a function makes it reusable and easier to test.
 
 ---
-
-## **22.5. Conclusion**
-
-These exercises demonstrate how to refactor bad code into clean code using concrete examples. Practice these principles to improve your ability to write clean and maintainable code.

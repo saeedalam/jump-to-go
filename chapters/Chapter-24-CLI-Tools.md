@@ -59,16 +59,29 @@ go run main.go Alice
 ---
 
 ### **2. Advanced CLI with `cobra`**
+# Advanced CLI with Cobra
 
-For more complex CLI tools, use the `cobra` library.
+Cobra is a powerful library for building advanced Command Line Interface (CLI) tools in Go. It allows you to easily create nested commands, parse flags, and generate documentation for your CLI tools. This tutorial will walk you through creating a CLI application using Cobra.
 
-**Installation**:
+---
+
+## **Installation**
+
+To get started with Cobra, install the necessary packages:
+
 ```bash
 go get -u github.com/spf13/cobra@latest
 go get -u github.com/spf13/cobra/cobra@latest
 ```
 
-**Code Example**:
+---
+
+## **Step 1: Creating a Basic Cobra CLI**
+
+Here’s a minimal example of using Cobra to create a CLI application.
+
+### **Code Example**
+
 ```go
 package main
 
@@ -94,8 +107,7 @@ func main() {
 				fmt.Println("Usage: greet hello <name>")
 				return
 			}
-			fmt.Printf("Hello, %s!
-", args[0])
+			fmt.Printf("Hello, %s!\n", args[0])
 		},
 	}
 
@@ -104,13 +116,184 @@ func main() {
 }
 ```
 
-**Run**:
+---
+
+## **Step 2: Running the Application**
+
+Save the above code in a file named `main.go`. Then, execute the following commands in your terminal:
+
 ```bash
 go run main.go hello Alice
-# Output: Hello, Alice!
+```
+
+### **Output**
+
+```plaintext
+Hello, Alice!
 ```
 
 ---
+
+## **Step 3: Adding More Commands**
+
+You can extend your CLI by adding additional commands. For example, let’s add a `goodbye` command:
+
+### **Updated Code**
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+)
+
+func main() {
+	var rootCmd = &cobra.Command{
+		Use:   "greet",
+		Short: "Greet CLI",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Welcome to the Greet CLI!")
+		},
+	}
+
+	var helloCmd = &cobra.Command{
+		Use:   "hello",
+		Short: "Say hello",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("Usage: greet hello <name>")
+				return
+			}
+			fmt.Printf("Hello, %s!\n", args[0])
+		},
+	}
+
+	var goodbyeCmd = &cobra.Command{
+		Use:   "goodbye",
+		Short: "Say goodbye",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("Usage: greet goodbye <name>")
+				return
+			}
+			fmt.Printf("Goodbye, %s!\n", args[0])
+		},
+	}
+
+	rootCmd.AddCommand(helloCmd, goodbyeCmd)
+	rootCmd.Execute()
+}
+```
+
+---
+
+## **Step 4: Running with Multiple Commands**
+
+Now you can use the `hello` and `goodbye` commands:
+
+### **Example Usage**
+
+```bash
+go run main.go hello Bob
+```
+
+**Output:**
+
+```plaintext
+Hello, Bob!
+```
+
+```bash
+go run main.go goodbye Bob
+```
+
+**Output:**
+
+```plaintext
+Goodbye, Bob!
+```
+
+---
+
+## **Step 5: Using Flags**
+
+Cobra supports flags for more advanced options. Let’s add a `--shout` flag to the `hello` command to print the message in uppercase.
+
+### **Code Example with Flags**
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+	"github.com/spf13/cobra"
+)
+
+func main() {
+	var shout bool
+
+	var rootCmd = &cobra.Command{
+		Use:   "greet",
+		Short: "Greet CLI",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Welcome to the Greet CLI!")
+		},
+	}
+
+	var helloCmd = &cobra.Command{
+		Use:   "hello",
+		Short: "Say hello",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				fmt.Println("Usage: greet hello <name>")
+				return
+			}
+			message := fmt.Sprintf("Hello, %s!", args[0])
+			if shout {
+				message = strings.ToUpper(message)
+			}
+			fmt.Println(message)
+		},
+	}
+
+	helloCmd.Flags().BoolVarP(&shout, "shout", "s", false, "Shout the greeting")
+	rootCmd.AddCommand(helloCmd)
+	rootCmd.Execute()
+}
+```
+
+### **Usage with Flags**
+
+```bash
+go run main.go hello Bob --shout
+```
+
+**Output:**
+
+```plaintext
+HELLO, BOB!
+```
+
+---
+
+## **Step 6: Generating Documentation**
+
+Cobra can automatically generate documentation for your CLI tool. Use the following command to generate markdown files for all commands:
+
+```bash
+cobra gen docs
+```
+
+This will create a `docs/` folder with detailed documentation for your commands.
+
+---
+
+## **Conclusion**
+
+Cobra makes it easy to build complex, feature-rich CLI tools in Go. By organizing commands, using flags, and generating documentation, you can create powerful tools tailored to your needs. For more details, visit the [Cobra documentation](https://github.com/spf13/cobra).
+
 
 ## **24.3. Handling Arguments and Flags**
 
@@ -303,19 +486,4 @@ goreleaser release --snapshot --skip-publish
 
 ---
 
-## **24.6. Conclusion**
 
-In this chapter, you learned how to:
-- Build simple and advanced CLI tools.
-- Handle arguments and flags.
-- Manage configurations with `viper`.
-- Package and distribute CLI tools.
-
-CLI tools are an integral part of software development and automation. Practice creating your own tools to improve productivity and gain proficiency with Go’s ecosystem.
-
----
-
-### **Next Steps**
-1. Add subcommands to your CLI tools.
-2. Experiment with libraries like `urfave/cli` for alternative approaches.
-3. Build a CLI tool for a real-world use case, such as task automation or file management.

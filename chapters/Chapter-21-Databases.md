@@ -284,25 +284,9 @@ func listBooksPaginated(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## **21.6. Conclusion**
 
-In this chapter, we extended our REST API by integrating it with a database using PostgreSQL and GORM. You learned how to:
 
-1. Set up and connect to a database.
-2. Perform CRUD operations.
-3. Follow best practices for database interaction.
-
-This foundation prepares you for more complex database interactions in real-world applications. Experiment further with features like relationships, transactions, and advanced queries.
-
----
-
-### **Next Steps:**
-
-- Implement **user authentication** with JWT and database.
-- Explore **GORM advanced features** like hooks, transactions, and relationships.
-- Add **pagination** and **sorting** to your API endpoints.
-
-# **Exercises for Chapter 21: Mastering GORM with PostgreSQL**
+# **Exercises**
 
 ---
 

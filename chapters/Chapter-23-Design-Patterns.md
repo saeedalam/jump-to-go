@@ -434,15 +434,8 @@ func main() {
 }
 ```
 
----
 
-## **23.4. Conclusion**
-
-These 10 design patterns provide a strong foundation for solving common problems in Go development. Practice implementing them in real projects to fully understand their power and flexibility.
-
----
-
-# **Exercises for Chapter 23: Essential Design Patterns in Go**
+# **Exercises**
 
 ---
 
