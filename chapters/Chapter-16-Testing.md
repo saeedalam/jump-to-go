@@ -1,4 +1,3 @@
-
 # **Chapter 16: Testing in Go**
 
 ---
@@ -322,15 +321,13 @@ ok      mathutils       100.0% coverage
 
 ## **16.6 Summary**
 
-| Concept       | Description                          | Command            |
-| ------------- | ------------------------------------ | ------------------ |
-| **Unit Test** | Validate function behavior.         | `go test`          |
-| **Benchmark** | Measure performance of code.        | `go test -bench=.` |
-| **Coverage**  | Check test coverage.                | `go test -cover`   |
+| Concept       | Description                  | Command            |
+| ------------- | ---------------------------- | ------------------ |
+| **Unit Test** | Validate function behavior.  | `go test`          |
+| **Benchmark** | Measure performance of code. | `go test -bench=.` |
+| **Coverage**  | Check test coverage.         | `go test -cover`   |
 
 ---
-
-
 
 # **16.7. Exercises**
 
@@ -678,5 +675,3 @@ ok      mathutils       0.002s
 ```
 
 ---
-
-**Congratulations!** These exercises cover unit tests, benchmarks, and edge cases for real-world scenarios. Keep practicing to strengthen your testing skills.

@@ -744,4 +744,4 @@ Factorial of 5: 120
 
 ---
 
-**Congratulations!** You've completed the exercises. Practice these examples to solidify your understanding of Go functions!
+

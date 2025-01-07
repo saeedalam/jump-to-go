@@ -1,4 +1,3 @@
-
 # **Chapter 18: Reflection**
 
 ---
@@ -11,6 +10,7 @@ Reflection is a powerful feature in Go that allows a program to inspect and mani
 2. **Dynamically manipulate** objects at runtime.
 
 Reflection in Go is provided through the `reflect` package, which offers two main interfaces:
+
 - `reflect.Type`: Represents the type of a value.
 - `reflect.Value`: Represents the actual value of a variable.
 
@@ -23,6 +23,7 @@ Reflection in Go is provided through the `reflect` package, which offers two mai
 | **Kind**  | The specific category of a type (e.g., int, string, slice).       |
 
 Reflection is often used for:
+
 - **Serialization**: Converting Go objects to formats like JSON or XML.
 - **Dynamic method invocation**: Calling methods on objects at runtime.
 - **Struct field validation**: Inspecting struct tags and enforcing business rules dynamically.
@@ -55,11 +56,13 @@ func main() {
 ```
 
 #### **Explanation:**
+
 - `reflect.TypeOf(x)` retrieves the type of the value `x` (in this case, `int`).
 - `reflect.ValueOf(x)` retrieves the runtime value of `x` (in this case, `42`).
 - `t.Kind()` returns the **kind** of the type (for example, `int` for integer values).
 
 #### **Output:**
+
 ```
 Type: int
 Value: 42
@@ -100,11 +103,13 @@ func main() {
 ```
 
 #### **Explanation:**
+
 - `t.NumField()` returns the number of fields in the struct.
 - `t.Field(i)` returns metadata about the field, such as its name, type, and associated tags.
 - In this example, we inspect the `Person` struct, printing its fields, types, and tags.
 
 #### **Output:**
+
 ```
 Field Name: Name, Type: string, Tag: json:"name"
 Field Name: Age, Type: int, Tag: json:"age"
@@ -144,10 +149,12 @@ func main() {
 ```
 
 #### **Explanation:**
+
 - `reflect.ValueOf(&p).Elem()` is used to get the address of the struct and modify its fields.
 - `FieldByName("Name")` retrieves the field by its name and allows modification using methods like `SetString` and `SetInt`.
 
 #### **Output:**
+
 ```
 Updated Struct: {Bob 40}
 ```
@@ -183,10 +190,12 @@ func main() {
 ```
 
 #### **Explanation:**
+
 - `reflect.ValueOf(calc).MethodByName("Add")` retrieves the method named "Add" from the `Calculator` type.
 - `method.Call()` is used to call the method with the provided arguments. The result is returned as a `reflect.Value`.
 
 #### **Output:**
+
 ```
 Result: 8
 ```
@@ -240,10 +249,12 @@ func main() {
 ```
 
 #### **Explanation:**
+
 - The `validateStruct` function checks if any fields with the `validate:"required"` tag are empty.
 - `v.Field(i).IsZero()` checks if the field has its zero value (i.e., it has not been set).
 
 #### **Output:**
+
 ```
 Validation error: Email is required
 ```
@@ -260,7 +271,6 @@ While reflection is powerful, it comes with its own set of limitations:
 ---
 
 This chapter introduced you to reflection in Go, demonstrating how to inspect and manipulate types and values dynamically. We've covered the basics of type and value inspection, modifying struct fields, and using reflection to call methods. Although reflection is powerful, it's important to use it judiciously due to its performance overhead and complexity.
-
 
 ## **18.8. Exercises**
 
@@ -604,7 +614,3 @@ Field Address: {Wonderland 12345}
 Field City: Wonderland
 Field Zip: 12345
 ```
-
----
-
-**Congratulations!** You've completed the reflection exercises. These examples are designed to give you hands-on experience with practical applications of reflection in Go.
