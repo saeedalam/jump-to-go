@@ -162,15 +162,15 @@ Fantastic! You've now successfully set up a local Go environment and run your pr
 
 Let's break down the "Hello, Go!" program you just wrote to understand its core components:
 
-```go
-package main
+    ```go
+    package main
 
-import "fmt"
+    import "fmt"
 
-func main() {
-    fmt.Println("Hello, Go!")
-}
-```
+    func main() {
+        fmt.Println("Hello, Go!")
+    }
+    ```
 
 1.  **`package main`**:
 
