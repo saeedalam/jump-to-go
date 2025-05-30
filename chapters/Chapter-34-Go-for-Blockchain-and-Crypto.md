@@ -884,22 +884,23 @@ Securely storing private keys is crucial for blockchain applications. Here's a s
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/crypto/scrypt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/crypto/scrypt"
 )
 
 // EncryptedKeystore represents an encrypted private key
@@ -972,10 +973,10 @@ func encryptWallet(data *WalletData, password string) (*EncryptedKeystore, error
 		KDF:        "scrypt",
 		MAC:        hex.EncodeToString(mac[:]),
 	}
-	encrypted.KDFParams.N = scryptParams.N
-	encrypted.KDFParams.R = scryptParams.R
-	encrypted.KDFParams.P = scryptParams.P
-	encrypted.KDFParams.DKLen = scryptParams.DKLen
+	encrypted.KDFParams.N = 1 << 18
+	encrypted.KDFParams.R = 8
+	encrypted.KDFParams.P = 1
+	encrypted.KDFParams.DKLen = 32
 
 	return encrypted, nil
 }
@@ -1018,7 +1019,7 @@ func decryptWallet(encrypted *EncryptedKeystore, password string) (*WalletData, 
 
 	// Verify MAC
 	calculatedMAC := sha256.Sum256(append(derivedKey[16:], ciphertext...))
-	if !hmac.Equal(calculatedMAC[:], mac) {
+	if !bytes.Equal(calculatedMAC[:], mac) {
 		return nil, fmt.Errorf("invalid password (MAC mismatch)")
 	}
 
@@ -1650,476 +1651,1319 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-)
-
-func main() {
-	// Connect to the Ethereum mainnet
-	mainnetClient, err := ethclient.Dial("https://mainnet.infura.io/v3/YOUR-PROJECT-ID")
-	if err != nil {
-		log.Fatalf("Failed to connect to Ethereum mainnet: %v", err)
-	}
-	defer mainnetClient.Close()
-
-	// Connect to the Goerli testnet
-	goerliClient, err := ethclient.Dial("https://goerli.infura.io/v3/YOUR-PROJECT-ID")
-	if err != nil {
-		log.Fatalf("Failed to connect to Goerli testnet: %v", err)
-	}
-	defer goerliClient.Close()
-
-	// Connect to a local node
-	localClient, err := ethclient.Dial("http://localhost:8545")
-	if err != nil {
-		log.Fatalf("Failed to connect to local node: %v", err)
-	}
-	defer localClient.Close()
-
-	// Get the latest block number from each network
-	ctx := context.Background()
-
-	mainnetBlock, err := mainnetClient.BlockByNumber(ctx, nil)
-	if err != nil {
-		log.Fatalf("Failed to get mainnet block: %v", err)
-	}
-
-	goerliBlock, err := goerliClient.BlockByNumber(ctx, nil)
-	if err != nil {
-		log.Fatalf("Failed to get goerli block: %v", err)
-	}
-
-	// Print block numbers
-	fmt.Printf("Ethereum Mainnet Block: %s\n", mainnetBlock.Number().String())
-	fmt.Printf("Goerli Testnet Block: %s\n", goerliBlock.Number().String())
-}
-```
-
-### ABI Encoding and Decoding
-
-To interact with smart contracts, you need to work with the Application Binary Interface (ABI). The ABI defines how to encode function calls and decode return values:
-
-```go
-package main
-
-import (
-	"encoding/json"
-	"fmt"
-	"log"
-	"math/big"
-	"strings"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-)
-
-// Simple ERC-20 ABI with just the balanceOf function
-const erc20ABI = `[
-	{
-		"constant": true,
-		"inputs": [{"name": "_owner", "type": "address"}],
-		"name": "balanceOf",
-		"outputs": [{"name": "balance", "type": "uint256"}],
-		"type": "function"
-	}
-]`
-
-// This is a simple example of how to use the ABI package to encode function calls
-func main() {
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		log.Fatalf("Failed to parse ABI: %v", err)
-	}
-
-	// Define the address for which we want to check the balance
-	address := common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-
-	// Encode the function call to balanceOf(address)
-	data, err := parsedABI.Pack("balanceOf", address)
-	if err != nil {
-		log.Fatalf("Failed to pack data: %v", err)
-	}
-
-	fmt.Printf("Function signature + encoded parameters: %x\n", data)
-
-	// The first 4 bytes are the function signature (selector)
-	funcSignature := data[:4]
-	fmt.Printf("Function signature: %x\n", funcSignature)
-
-	// The rest are the encoded parameters
-	encodedParams := data[4:]
-	fmt.Printf("Encoded parameters: %x\n", encodedParams)
-
-	// Manually calculate the function selector to verify
-	// keccak256("balanceOf(address)") and take the first 4 bytes
-	hash := crypto.Keccak256([]byte("balanceOf(address)"))
-	manualSelector := hash[:4]
-	fmt.Printf("Manually calculated selector: %x\n", manualSelector)
-
-	// Simulate receiving a response and unpacking it
-	// In a real scenario, this would come from an eth_call RPC
-	mockResponseHex := "0x000000000000000000000000000000000000000000000001a055690d9db80000" // 30 ETH
-	mockResponse, err := hex.DecodeString(strings.TrimPrefix(mockResponseHex, "0x"))
-	if err != nil {
-		log.Fatalf("Failed to decode hex: %v", err)
-	}
-
-	// Unpack the result
-	var balance *big.Int
-	err = parsedABI.UnpackIntoInterface(&balance, "balanceOf", mockResponse)
-	if err != nil {
-		log.Fatalf("Failed to unpack result: %v", err)
-	}
-
-	fmt.Printf("Balance: %s wei (%s ETH)\n",
-		balance.String(),
-		new(big.Float).Quo(
-			new(big.Float).SetInt(balance),
-			new(big.Float).SetInt(big.NewInt(1e18)),
-		).String(),
-	)
-}
-```
-
-### Smart Contract Deployment and Interaction
-
-Let's look at how to deploy and interact with a smart contract:
-
-```go
-package main
-
-import (
-	"context"
-	"crypto/ecdsa"
-	"fmt"
-	"log"
-	"math/big"
-	"strings"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// SimpleToken ABI and bytecode
-const simpleTokenABI = `[
-	{
-		"inputs": [{"name": "initialSupply", "type": "uint256"}],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	},
-	{
-		"inputs": [{"name": "account", "type": "address"}],
-		"name": "balanceOf",
-		"outputs": [{"name": "", "type": "uint256"}],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{"name": "recipient", "type": "address"},
-			{"name": "amount", "type": "uint256"}
-		],
-		"name": "transfer",
-		"outputs": [{"name": "", "type": "bool"}],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	}
-]`
+// EthClient wraps the standard ethclient with additional functionality
+type EthClient struct {
+	client     *ethclient.Client
+	chainID    *big.Int
+	retryLimit int
+	retryDelay time.Duration
+}
 
-// Compiled SimpleToken bytecode (truncated for example)
-const simpleTokenBytecode = "0x608060405234801561001057600080fd5b5060405161047f38038061047f83398181016040528101906100329190610099565b806000803373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002081905550506100c6565b600080fd5b6000819050919050565b61007681610063565b811461008157600080fd5b50565b6000815190506100938161006d565b92915050565b6000602082840312156100af576100ae61005e565b5b60006100bd84828501610084565b91505092915050565b6103aa806100d56000396000f3fe608060405260043610610046576000357c01000000000000000000000000000000000000000000000000000000009004806370a082311461004a578063a9059cbb1461008a575b5f80fd5b34801561005557600080fd5b50610074600480360381019061006f9190610209565b6100bd565b6040516100819190610251565b60405180910390f35b34801561009557600080fd5b506100a0610104565b604051610058919061027c565b5f80fd5b5f8082815260200190815260200160002054905090565b5f8082815260200190815260200160002060008282546101239190610298565b925050819055506001905090565b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f61015c82610135565b9050919050565b61016c81610151565b811461017757600080fd5b50565b5f8135905061018981610163565b92915050565b5f819050919050565b6101a28161018f565b81146101ad57600080fd5b50565b5f813590506101bf81610199565b92915050565b5f80604083850312156101db576101da610130565b5b5f6101e88582860161017a565b92505060206101f9858286016101b0565b9150509250929050565b5f6020828403121561021f5761021e610130565b5b5f61022c8482850161017a565b91505092915050565b61023e8161018f565b82525050565b5f8115159050919050565b5f61025b82610244565b9050919050565b61026b8161024c565b82525050565b5f6020820190506102865f830184610235565b92915050565b5f6020820190506102a15f830184610260565b92915050565b5f80828401905083811015610240578482600052809450505050509291505054"
-
-func main() {
-	// Connect to a local Ethereum node
-	client, err := ethclient.Dial("http://localhost:8545")
+// NewEthClient creates a new Ethereum client
+func NewEthClient(url string) (*EthClient, error) {
+	client, err := ethclient.Dial(url)
 	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
-	}
-	defer client.Close()
-
-	// Generate a private key for testing (don't do this in production)
-	privateKey, err := crypto.GenerateKey()
-	if err != nil {
-		log.Fatalf("Failed to generate private key: %v", err)
+		return nil, fmt.Errorf("failed to connect to Ethereum node: %w", err)
 	}
 
-	// Get the public address
-	from := crypto.PubkeyToAddress(privateKey.PublicKey)
-	fmt.Printf("From address: %s\n", from.Hex())
+	// Get chain ID
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// Get the nonce for the account
-	ctx := context.Background()
-	nonce, err := client.PendingNonceAt(ctx, from)
-	if err != nil {
-		log.Fatalf("Failed to get nonce: %v", err)
-	}
-
-	// Set gas price and limit
-	gasPrice, err := client.SuggestGasPrice(ctx)
-	if err != nil {
-		log.Fatalf("Failed to suggest gas price: %v", err)
-	}
-
-	// Create auth for the transaction
 	chainID, err := client.NetworkID(ctx)
 	if err != nil {
-		log.Fatalf("Failed to get network ID: %v", err)
-	}
-	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
-	if err != nil {
-		log.Fatalf("Failed to create authorized transactor: %v", err)
-	}
-	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(0)     // No ETH sent
-	auth.GasLimit = uint64(3000000) // Gas limit
-	auth.GasPrice = gasPrice
-
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(simpleTokenABI))
-	if err != nil {
-		log.Fatalf("Failed to parse ABI: %v", err)
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
 	}
 
-	// Initial supply: 1,000,000 tokens (with 18 decimals)
-	initialSupply := new(big.Int)
-	initialSupply.Exp(big.NewInt(10), big.NewInt(18+6), nil) // 10^(18+6) = 10^24
-
-	// Pack constructor arguments
-	input, err := parsedABI.Pack("", initialSupply)
-	if err != nil {
-		log.Fatalf("Failed to pack constructor arguments: %v", err)
-	}
-
-	// Append constructor arguments to bytecode
-	bytecode := common.FromHex(simpleTokenBytecode)
-	bytecode = append(bytecode, input...)
-
-	// Deploy the contract
-	tx := types.NewContractCreation(nonce, big.NewInt(0), auth.GasLimit, gasPrice, bytecode)
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
-	if err != nil {
-		log.Fatalf("Failed to sign transaction: %v", err)
-	}
-
-	// Send the transaction
-	err = client.SendTransaction(ctx, signedTx)
-	if err != nil {
-		log.Fatalf("Failed to send transaction: %v", err)
-	}
-
-	fmt.Printf("Transaction sent: %s\n", signedTx.Hash().Hex())
-	fmt.Println("Waiting for transaction to be mined...")
-
-	// Wait for transaction receipt
-	receipt, err := bind.WaitMined(ctx, client, signedTx)
-	if err != nil {
-		log.Fatalf("Failed to get transaction receipt: %v", err)
-	}
-
-	contractAddress := receipt.ContractAddress
-	fmt.Printf("Contract deployed at: %s\n", contractAddress.Hex())
-}
-```
-
-### Event Monitoring and Filtering
-
-Smart contracts emit events that you can monitor:
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-	"math/big"
-	"strings"
-
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-)
-
-// ERC-20 Transfer event ABI
-const erc20TransferEventABI = `[{
-	"anonymous": false,
-	"inputs": [
-		{"indexed": true, "name": "from", "type": "address"},
-		{"indexed": true, "name": "to", "type": "address"},
-		{"indexed": false, "name": "value", "type": "uint256"}
-	],
-	"name": "Transfer",
-	"type": "event"
-}]`
-
-// Transfer event structure
-type Transfer struct {
-	From  common.Address
-	To    common.Address
-	Value *big.Int
+	return &EthClient{
+		client:     client,
+		chainID:    chainID,
+		retryLimit: 3,
+		retryDelay: 2 * time.Second,
+	}, nil
 }
 
-func main() {
-	// Connect to an Ethereum node
-	client, err := ethclient.Dial("wss://mainnet.infura.io/ws/v3/YOUR-PROJECT-ID")
+// Close closes the Ethereum client
+func (c *EthClient) Close() {
+	c.client.Close()
+}
+
+// GetBalance gets the balance of an address
+func (c *EthClient) GetBalance(address common.Address) (*big.Int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	balance, err := c.client.BalanceAt(ctx, address, nil)
 	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+		return nil, fmt.Errorf("failed to get balance: %w", err)
 	}
-	defer client.Close()
 
-	// Parse the ERC-20 ABI to get event signature
-	parsedABI, err := abi.JSON(strings.NewReader(erc20TransferEventABI))
+	return balance, nil
+}
+
+// GetTransaction gets a transaction by hash
+func (c *EthClient) GetTransaction(txHash common.Hash) (*types.Transaction, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tx, isPending, err := c.client.TransactionByHash(ctx, txHash)
 	if err != nil {
-		log.Fatalf("Failed to parse ABI: %v", err)
+		return nil, false, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	// Get the Transfer event signature
-	transferEventSig := parsedABI.Events["Transfer"].ID
+	return tx, isPending, nil
+}
 
-	// USDC contract address
-	usdcAddress := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+// WaitForTransaction waits for a transaction to be mined
+func (c *EthClient) WaitForTransaction(txHash common.Hash, timeout time.Duration) (*types.Receipt, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	// Set up the query for Transfer events
-	query := ethereum.FilterQuery{
-		Addresses: []common.Address{usdcAddress},
-		Topics: [][]common.Hash{
-			{transferEventSig}, // Transfer event signature
-		},
-	}
+	// Create a ticker to poll for the transaction receipt
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-	// Create a channel to receive event logs
-	logs := make(chan types.Log)
-
-	// Subscribe to logs matching the filter
-	sub, err := client.SubscribeFilterLogs(context.Background(), query, logs)
-	if err != nil {
-		log.Fatalf("Failed to subscribe to logs: %v", err)
-	}
-
-	fmt.Println("Watching for USDC transfers...")
-
-	// Process incoming logs
 	for {
 		select {
-		case err := <-sub.Err():
-			log.Fatalf("Subscription error: %v", err)
-		case vLog := <-logs:
-			// Parse the log data into our Transfer struct
-			var transfer Transfer
-			err := parsedABI.UnpackIntoInterface(&transfer, "Transfer", vLog.Data)
+		case <-ctx.Done():
+			return nil, fmt.Errorf("timeout waiting for transaction %s", txHash.Hex())
+		case <-ticker.C:
+			receipt, err := c.client.TransactionReceipt(ctx, txHash)
 			if err != nil {
-				log.Printf("Failed to unpack event data: %v", err)
 				continue
 			}
-
-			// The first two indexed parameters (from, to) are in the Topics
-			transfer.From = common.BytesToAddress(vLog.Topics[1].Bytes())
-			transfer.To = common.BytesToAddress(vLog.Topics[2].Bytes())
-
-			// Print transfer details
-			fmt.Printf("Transfer: %s -> %s, Value: %s USDC\n",
-				transfer.From.Hex(),
-				transfer.To.Hex(),
-				new(big.Float).Quo(
-					new(big.Float).SetInt(transfer.Value),
-					new(big.Float).SetInt(big.NewInt(1e6)), // USDC has 6 decimals
-				).String(),
-			)
+			return receipt, nil
 		}
 	}
 }
-```
 
-### Using Go Bindings for Smart Contracts
+// SendTransaction sends a signed transaction with retry mechanism
+func (c *EthClient) SendTransaction(tx *types.Transaction) (common.Hash, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-The go-ethereum library includes a tool called `abigen` that generates type-safe Go bindings for Solidity smart contracts:
+	var err error
+	for i := 0; i < c.retryLimit; i++ {
+		err = c.client.SendTransaction(ctx, tx)
+		if err == nil {
+			return tx.Hash(), nil
+		}
 
-```bash
-# Generate Go bindings from a Solidity smart contract ABI
-abigen --abi=./Token.abi --pkg=token --out=Token.go
-```
+		// Wait before retrying
+		time.Sleep(c.retryDelay)
+	}
 
-Once generated, you can use these bindings to interact with the contract:
+	return common.Hash{}, fmt.Errorf("failed to send transaction after %d attempts: %w", c.retryLimit, err)
+}
 
-```go
-package main
+// GetGasPrice gets the current gas price
+func (c *EthClient) GetGasPrice() (*big.Int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"math/big"
+	gasPrice, err := c.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gas price: %w", err)
+	}
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	return gasPrice, nil
+}
 
-	"your-project/token" // Generated bindings
-)
+// EstimateGas estimates the gas needed for a transaction
+func (c *EthClient) EstimateGas(msg ethereum.CallMsg) (uint64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	gas, err := c.client.EstimateGas(ctx, msg)
+	if err != nil {
+		return 0, fmt.Errorf("failed to estimate gas: %w", err)
+	}
+
+	return gas, nil
+}
 
 func main() {
 	// Connect to an Ethereum node
-	client, err := ethclient.Dial("https://mainnet.infura.io/v3/YOUR-PROJECT-ID")
+	client, err := NewEthClient("https://mainnet.infura.io/v3/YOUR-PROJECT-ID")
 	if err != nil {
-		log.Fatalf("Failed to connect to Ethereum client: %v", err)
+		log.Fatalf("Failed to create Ethereum client: %v", err)
 	}
 	defer client.Close()
 
-	// USDC contract address
-	tokenAddress := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+	// Get the chain ID
+	fmt.Printf("Connected to Ethereum network with Chain ID: %s\n", client.chainID.String())
 
-	// Create a new instance of the token contract
-	tokenContract, err := token.NewToken(tokenAddress, client)
-	if err != nil {
-		log.Fatalf("Failed to instantiate token contract: %v", err)
-	}
-
-	// Get token name and symbol
-	name, err := tokenContract.Name(&bind.CallOpts{})
-	if err != nil {
-		log.Fatalf("Failed to get token name: %v", err)
-	}
-
-	symbol, err := tokenContract.Symbol(&bind.CallOpts{})
-	if err != nil {
-		log.Fatalf("Failed to get token symbol: %v", err)
-	}
-
-	decimals, err := tokenContract.Decimals(&bind.CallOpts{})
-	if err != nil {
-		log.Fatalf("Failed to get token decimals: %v", err)
-	}
-
-	fmt.Printf("Token: %s (%s), Decimals: %d\n", name, symbol, decimals)
-
-	// Get balance of an address
+	// Get the balance of an address
 	address := common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-	balance, err := tokenContract.BalanceOf(&bind.CallOpts{}, address)
+	balance, err := client.GetBalance(address)
 	if err != nil {
 		log.Fatalf("Failed to get balance: %v", err)
 	}
 
-	// Calculate human-readable balance
-	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-	readable := new(big.Float).Quo(
+	// Convert to Ether
+	ether := new(big.Float).Quo(
 		new(big.Float).SetInt(balance),
-		new(big.Float).SetInt(divisor),
+		new(big.Float).SetInt(big.NewInt(1e18)),
 	)
 
-	fmt.Printf("Balance of %s: %s %s\n", address.Hex(), readable.String(), symbol)
+	fmt.Printf("Balance of %s: %s ETH\n", address.Hex(), ether.String())
+
+	// Get information about a transaction
+	txHash := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	tx, isPending, err := client.GetTransaction(txHash)
+	if err != nil {
+		log.Fatalf("Failed to get transaction: %v", err)
+	}
+
+	fmt.Printf("Transaction %s is pending: %v\n", txHash.Hex(), isPending)
+	if tx.To() != nil {
+		fmt.Printf("  To: %s\n", tx.To().Hex())
+	} else {
+		fmt.Printf("  To: Contract Creation\n")
+	}
+	fmt.Printf("  Value: %s Wei\n", tx.Value().String())
+	fmt.Printf("  Gas Limit: %d\n", tx.Gas())
+	fmt.Printf("  Gas Price: %s Gwei\n", new(big.Float).Quo(
+		new(big.Float).SetInt(tx.GasPrice()),
+		new(big.Float).SetInt(big.NewInt(1e9)),
+	).String())
+
+	// Get current gas price
+	gasPrice, err := client.GetGasPrice()
+	if err != nil {
+		log.Fatalf("Failed to get gas price: %v", err)
+	}
+
+	fmt.Printf("Current gas price: %s Gwei\n", new(big.Float).Quo(
+		new(big.Float).SetInt(gasPrice),
+		new(big.Float).SetInt(big.NewInt(1e9)),
+	).String())
 }
 ```
 
-These examples demonstrate how to deploy, interact with, and monitor smart contracts using Go. In the next section, we'll cover wallet implementation and key management.
+### Bitcoin Integration
+
+Interacting with Bitcoin networks requires different libraries. Let's implement a simple Bitcoin client:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcutil"
+)
+
+// BTCClient represents a Bitcoin client
+type BTCClient struct {
+	client *rpcclient.Client
+	params *chaincfg.Params
+}
+
+// NewBTCClient creates a new Bitcoin client
+func NewBTCClient(host, user, pass string, useSSL bool, testnet bool) (*BTCClient, error) {
+	// Set connection configuration
+	connCfg := &rpcclient.ConnConfig{
+		Host:         host,
+		User:         user,
+		Pass:         pass,
+		HTTPPostMode: true,
+		DisableTLS:   !useSSL,
+	}
+
+	// Create the client
+	client, err := rpcclient.New(connCfg, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Bitcoin client: %w", err)
+	}
+
+	// Set network parameters
+	var params *chaincfg.Params
+	if testnet {
+		params = &chaincfg.TestNet3Params
+	} else {
+		params = &chaincfg.MainNetParams
+	}
+
+	return &BTCClient{
+		client: client,
+		params: params,
+	}, nil
+}
+
+// Close closes the Bitcoin client
+func (c *BTCClient) Close() {
+	c.client.Shutdown()
+}
+
+// GetBlockCount gets the current block height
+func (c *BTCClient) GetBlockCount() (int64, error) {
+	count, err := c.client.GetBlockCount()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block count: %w", err)
+	}
+	return count, nil
+}
+
+// GetBalance gets the balance of an address
+func (c *BTCClient) GetBalance(address string) (float64, error) {
+	// This is a simplified approach - in practice, you would need to scan the UTXO set
+	// for the address, which requires more complex logic
+
+	// Validate address
+	_, err := btcutil.DecodeAddress(address, c.params)
+	if err != nil {
+		return 0, fmt.Errorf("invalid Bitcoin address: %w", err)
+	}
+
+	// For demonstration purposes, we'll use the wallet's getreceivedbyaddress command
+	// This only works if the address is in the wallet
+	balance, err := c.client.GetReceivedByAddress(address)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get balance: %w", err)
+	}
+
+	return balance, nil
+}
+
+// GetTransaction gets a transaction by hash
+func (c *BTCClient) GetTransaction(txHash string) (*btcjson.GetTransactionResult, error) {
+	tx, err := c.client.GetTransaction(txHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+	return tx, nil
+}
+
+// SendToAddress sends Bitcoin to an address
+func (c *BTCClient) SendToAddress(address string, amount float64) (string, error) {
+	// Validate address
+	addr, err := btcutil.DecodeAddress(address, c.params)
+	if err != nil {
+		return "", fmt.Errorf("invalid Bitcoin address: %w", err)
+	}
+
+	// Send the transaction
+	txHash, err := c.client.SendToAddress(addr, btcutil.Amount(amount*1e8))
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return txHash.String(), nil
+}
+
+func main() {
+	// Create a Bitcoin client
+	client, err := NewBTCClient("localhost:8332", "username", "password", false, false)
+	if err != nil {
+		log.Fatalf("Failed to create Bitcoin client: %v", err)
+	}
+	defer client.Close()
+
+	// Get the current block count
+	blockCount, err := client.GetBlockCount()
+	if err != nil {
+		log.Fatalf("Failed to get block count: %v", err)
+	}
+	fmt.Printf("Current block height: %d\n", blockCount)
+
+	// Get the balance of an address
+	address := "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa" // Example address (Bitcoin genesis block)
+	balance, err := client.GetBalance(address)
+	if err != nil {
+		log.Printf("Failed to get balance: %v", err)
+	} else {
+		fmt.Printf("Balance of %s: %.8f BTC\n", address, balance)
+	}
+
+	// Get a transaction
+	txHash := "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b" // Genesis block coinbase transaction
+	tx, err := client.GetTransaction(txHash)
+	if err != nil {
+		log.Printf("Failed to get transaction: %v", err)
+	} else {
+		fmt.Printf("Transaction %s:\n", txHash)
+		fmt.Printf("  Amount: %.8f BTC\n", tx.Amount)
+		fmt.Printf("  Confirmations: %d\n", tx.Confirmations)
+		fmt.Printf("  Time: %s\n", time.Unix(tx.Time, 0).String())
+	}
+}
+```
+
+### Multi-Chain Client
+
+For applications that need to interact with multiple blockchain networks, we can create a unified client interface:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+)
+
+// BlockchainClient is an interface for blockchain clients
+type BlockchainClient interface {
+	GetBalance(address string) (string, error)
+	SendTransaction(from, to string, amount string) (string, error)
+	Close()
+}
+
+// EthereumClient implements BlockchainClient for Ethereum
+type EthereumClient struct {
+	client  *ethclient.Client
+	chainID *big.Int
+}
+
+// NewEthereumClient creates a new Ethereum client
+func NewEthereumClient(url string) (*EthereumClient, error) {
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Ethereum node: %w", err)
+	}
+
+	// Get chain ID
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	return &EthereumClient{
+		client:  client,
+		chainID: chainID,
+	}, nil
+}
+
+// GetBalance gets the balance of an Ethereum address
+func (c *EthereumClient) GetBalance(address string) (string, error) {
+	// Convert address string to Ethereum address
+	ethAddress := common.HexToAddress(address)
+
+	// Get balance
+	balance, err := c.client.BalanceAt(context.Background(), ethAddress, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get balance: %w", err)
+	}
+
+	// Convert to Ether
+	ether := new(big.Float).Quo(
+		new(big.Float).SetInt(balance),
+		new(big.Float).SetInt(big.NewInt(1e18)),
+	)
+
+	return ether.String() + " ETH", nil
+}
+
+// SendTransaction sends Ethereum to an address
+func (c *EthereumClient) SendTransaction(from, to string, amount string) (string, error) {
+	// This is a simplified implementation
+	// In a real application, you would need to:
+	// 1. Parse the amount
+	// 2. Load the private key for the sender
+	// 3. Sign and send the transaction
+
+	return "transaction_hash", nil
+}
+
+// Close closes the Ethereum client
+func (c *EthereumClient) Close() {
+	c.client.Close()
+}
+
+// BitcoinClient implements BlockchainClient for Bitcoin
+type BitcoinClient struct {
+	// In a real implementation, this would contain the Bitcoin client
+}
+
+// NewBitcoinClient creates a new Bitcoin client
+func NewBitcoinClient(url, user, pass string) (*BitcoinClient, error) {
+	// Initialize Bitcoin client
+	return &BitcoinClient{}, nil
+}
+
+// GetBalance gets the balance of a Bitcoin address
+func (c *BitcoinClient) GetBalance(address string) (string, error) {
+	// Simplified implementation
+	return "0.0 BTC", nil
+}
+
+// SendTransaction sends Bitcoin to an address
+func (c *BitcoinClient) SendTransaction(from, to string, amount string) (string, error) {
+	// Simplified implementation
+	return "transaction_hash", nil
+}
+
+// Close closes the Bitcoin client
+func (c *BitcoinClient) Close() {
+	// Close the Bitcoin client
+}
+
+// MultiChainClient manages multiple blockchain clients
+type MultiChainClient struct {
+	clients map[string]BlockchainClient
+}
+
+// NewMultiChainClient creates a new multi-chain client
+func NewMultiChainClient() *MultiChainClient {
+	return &MultiChainClient{
+		clients: make(map[string]BlockchainClient),
+	}
+}
+
+// AddClient adds a blockchain client
+func (c *MultiChainClient) AddClient(chain string, client BlockchainClient) {
+	c.clients[chain] = client
+}
+
+// GetClient gets a blockchain client by chain
+func (c *MultiChainClient) GetClient(chain string) (BlockchainClient, error) {
+	client, ok := c.clients[chain]
+	if !ok {
+		return nil, fmt.Errorf("client for chain %s not found", chain)
+	}
+	return client, nil
+}
+
+// GetBalance gets the balance of an address on a specific chain
+func (c *MultiChainClient) GetBalance(chain, address string) (string, error) {
+	client, err := c.GetClient(chain)
+	if err != nil {
+		return "", err
+	}
+	return client.GetBalance(address)
+}
+
+// SendTransaction sends a transaction on a specific chain
+func (c *MultiChainClient) SendTransaction(chain, from, to, amount string) (string, error) {
+	client, err := c.GetClient(chain)
+	if err != nil {
+		return "", err
+	}
+	return client.SendTransaction(from, to, amount)
+}
+
+// Close closes all blockchain clients
+func (c *MultiChainClient) Close() {
+	for _, client := range c.clients {
+		client.Close()
+	}
+}
+
+func main() {
+	// Create a multi-chain client
+	multiClient := NewMultiChainClient()
+
+	// Add Ethereum client
+	ethClient, err := NewEthereumClient("https://mainnet.infura.io/v3/YOUR-PROJECT-ID")
+	if err != nil {
+		log.Fatalf("Failed to create Ethereum client: %v", err)
+	}
+	multiClient.AddClient("ethereum", ethClient)
+
+	// Add Bitcoin client
+	btcClient, err := NewBitcoinClient("localhost:8332", "username", "password")
+	if err != nil {
+		log.Fatalf("Failed to create Bitcoin client: %v", err)
+	}
+	multiClient.AddClient("bitcoin", btcClient)
+
+	// Get balances
+	ethAddress := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+	ethBalance, err := multiClient.GetBalance("ethereum", ethAddress)
+	if err != nil {
+		log.Printf("Failed to get Ethereum balance: %v", err)
+	} else {
+		fmt.Printf("Ethereum balance of %s: %s\n", ethAddress, ethBalance)
+	}
+
+	btcAddress := "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+	btcBalance, err := multiClient.GetBalance("bitcoin", btcAddress)
+	if err != nil {
+		log.Printf("Failed to get Bitcoin balance: %v", err)
+	} else {
+		fmt.Printf("Bitcoin balance of %s: %s\n", btcAddress, btcBalance)
+	}
+
+	// Close all clients
+	multiClient.Close()
+}
+```
+
+### Cross-Chain Interactions
+
+Advanced blockchain applications often need to interact across different chains. Here's a simple example of monitoring events on multiple chains:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+)
+
+// ChainMonitor monitors blockchain events
+type ChainMonitor struct {
+	clients map[string]*ethclient.Client
+	filters map[string]ethereum.FilterQuery
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+// NewChainMonitor creates a new chain monitor
+func NewChainMonitor() *ChainMonitor {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &ChainMonitor{
+		clients: make(map[string]*ethclient.Client),
+		filters: make(map[string]ethereum.FilterQuery),
+		ctx:     ctx,
+		cancel:  cancel,
+	}
+}
+
+// AddChain adds a chain to monitor
+func (m *ChainMonitor) AddChain(name, url string, filter ethereum.FilterQuery) error {
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to %s: %w", name, err)
+	}
+
+	m.clients[name] = client
+	m.filters[name] = filter
+
+	return nil
+}
+
+// Start starts monitoring all chains
+func (m *ChainMonitor) Start(callback func(chainName string, log types.Log)) {
+	for name, client := range m.clients {
+		m.wg.Add(1)
+		go m.monitorChain(name, client, m.filters[name], callback)
+	}
+}
+
+// monitorChain monitors a single chain
+func (m *ChainMonitor) monitorChain(name string, client *ethclient.Client, filter ethereum.FilterQuery, callback func(string, types.Log)) {
+	defer m.wg.Done()
+
+	logs := make(chan types.Log)
+	sub, err := client.SubscribeFilterLogs(m.ctx, filter, logs)
+	if err != nil {
+		log.Printf("Failed to subscribe to %s logs: %v", name, err)
+		return
+	}
+	defer sub.Unsubscribe()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case err := <-sub.Err():
+			log.Printf("Error in %s subscription: %v", name, err)
+			return
+		case eventLog := <-logs:
+			callback(name, eventLog)
+		}
+	}
+}
+
+// Stop stops monitoring all chains
+func (m *ChainMonitor) Stop() {
+	m.cancel()
+	m.wg.Wait()
+
+	for name, client := range m.clients {
+		client.Close()
+		delete(m.clients, name)
+	}
+}
+
+func main() {
+	// Create a chain monitor
+	monitor := NewChainMonitor()
+
+	// Define USDC contract addresses on different chains
+	usdcEthereum := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+	usdcPolygon := common.HexToAddress("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")
+
+	// Add Ethereum mainnet
+	err := monitor.AddChain(
+		"ethereum",
+		"wss://mainnet.infura.io/ws/v3/YOUR-PROJECT-ID",
+		ethereum.FilterQuery{
+			Addresses: []common.Address{usdcEthereum},
+		},
+	)
+	if err != nil {
+		log.Fatalf("Failed to add Ethereum: %v", err)
+	}
+
+	// Add Polygon mainnet
+	err = monitor.AddChain(
+		"polygon",
+		"wss://polygon-mainnet.infura.io/ws/v3/YOUR-PROJECT-ID",
+		ethereum.FilterQuery{
+			Addresses: []common.Address{usdcPolygon},
+		},
+	)
+	if err != nil {
+		log.Fatalf("Failed to add Polygon: %v", err)
+	}
+
+	// Start monitoring
+	monitor.Start(func(chainName string, eventLog types.Log) {
+		fmt.Printf("Event on %s:\n", chainName)
+		fmt.Printf("  Block: %d\n", eventLog.BlockNumber)
+		fmt.Printf("  TxHash: %s\n", eventLog.TxHash.Hex())
+		fmt.Printf("  Address: %s\n", eventLog.Address.Hex())
+		fmt.Printf("  Topics: %v\n", eventLog.Topics)
+	})
+
+	fmt.Println("Monitoring USDC events on Ethereum and Polygon...")
+	fmt.Println("Press Ctrl+C to stop")
+
+	// Run for a while
+	time.Sleep(10 * time.Minute)
+
+	// Stop monitoring
+	monitor.Stop()
+}
+```
+
+These examples demonstrate how to interact with different blockchain networks using Go. The key aspects to consider when building blockchain integrations include:
+
+1. **Connection Management**: Properly handling connections to blockchain nodes
+2. **Error Handling**: Implementing retry mechanisms for network errors
+3. **Transaction Monitoring**: Tracking transaction status across networks
+4. **Cross-Chain Communication**: Coordinating operations across multiple blockchains
+5. **Security**: Ensuring secure key management and transaction signing
+
+In the next section, we'll explore how to build complete decentralized applications (dApps) with Go backends.
+
+## **34.7 Building Decentralized Applications (dApps)**
+
+- Architecture patterns for Web3 applications
+- Backend services for dApps
+- Authentication with wallets
+- Handling blockchain events
+
+## **34.8 Layer 2 Solutions and Scaling**
+
+- Implementing state channels
+- Optimistic rollups
+- Zero-knowledge proofs
+- Sidechains and cross-chain bridges
+
+## **34.9 Security Best Practices**
+
+Security is paramount in blockchain applications. A single vulnerability can lead to significant financial losses and erode trust in the system. This section explores essential security practices for blockchain applications written in Go.
+
+### Common Vulnerabilities in Blockchain Applications
+
+Blockchain applications face unique security challenges. Here are the most common vulnerabilities and how to mitigate them:
+
+#### 1. Private Key Management
+
+The most critical vulnerability in blockchain applications is improper private key management. If an attacker gains access to a private key, they gain complete control over the associated assets.
+
+**Best practices:**
+
+```go
+package main
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
+
+	"golang.org/x/crypto/scrypt"
+	"golang.org/x/term"
+)
+
+// Never store private keys in code or configuration files
+const (
+	keyStorePath = "./keys"  // Store in a secure location
+	minPassLen   = 12        // Minimum password length
+)
+
+// EncryptKey encrypts a private key with a password
+func EncryptKey(privateKey, password string) (string, error) {
+	// Validate password strength
+	if len(password) < minPassLen {
+		return "", fmt.Errorf("password too short, minimum length is %d", minPassLen)
+	}
+
+	if !hasUpperLower(password) || !hasNumbers(password) || !hasSpecialChars(password) {
+		return "", fmt.Errorf("password must contain uppercase, lowercase, numbers, and special characters")
+	}
+
+	// Generate salt
+	salt := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return "", err
+	}
+
+	// Derive key using scrypt (memory-hard KDF)
+	derivedKey, err := scrypt.Key([]byte(password), salt, 1<<18, 8, 1, 32)
+	if err != nil {
+		return "", err
+	}
+
+	// Create AES-256 cipher
+	block, err := aes.NewCipher(derivedKey[:32])
+	if err != nil {
+		return "", err
+	}
+
+	// Generate nonce for GCM
+	nonce := make([]byte, 12)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	// Create GCM mode
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Encrypt the private key
+	ciphertext := aesgcm.Seal(nil, nonce, []byte(privateKey), nil)
+
+	// Combine salt, nonce, and ciphertext for storage
+	result := append(salt, append(nonce, ciphertext...)...)
+
+	return hex.EncodeToString(result), nil
+}
+
+// DecryptKey decrypts a private key with a password
+func DecryptKey(encryptedKey, password string) (string, error) {
+	data, err := hex.DecodeString(encryptedKey)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract salt, nonce, and ciphertext
+	salt := data[:32]
+	nonce := data[32:44]
+	ciphertext := data[44:]
+
+	// Derive key using scrypt
+	derivedKey, err := scrypt.Key([]byte(password), salt, 1<<18, 8, 1, 32)
+	if err != nil {
+		return "", err
+	}
+
+	// Create AES-256 cipher
+	block, err := aes.NewCipher(derivedKey[:32])
+	if err != nil {
+		return "", err
+	}
+
+	// Create GCM mode
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Decrypt the private key
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+
+// StoreKey stores an encrypted key to the filesystem
+func StoreKey(address, encryptedKey string) error {
+	// Create keystore directory if it doesn't exist
+	if err := os.MkdirAll(keyStorePath, 0700); err != nil {
+		return err
+	}
+
+	// Create file with restricted permissions
+	filePath := filepath.Join(keyStorePath, address+".key")
+	return os.WriteFile(filePath, []byte(encryptedKey), 0600)
+}
+
+// SecurePasswordPrompt prompts for a password without echoing
+func SecurePasswordPrompt(prompt string) (string, error) {
+	fmt.Print(prompt)
+	password, err := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println()
+	if err != nil {
+		return "", err
+	}
+	return string(password), nil
+}
+
+// Helper functions for password strength
+func hasUpperLower(s string) bool {
+	return strings.ContainsAny(s, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") &&
+           strings.ContainsAny(s, "abcdefghijklmnopqrstuvwxyz")
+}
+
+func hasNumbers(s string) bool {
+	return strings.ContainsAny(s, "0123456789")
+}
+
+func hasSpecialChars(s string) bool {
+	return strings.ContainsAny(s, "!@#$%^&*()_+-=[]{}|;:,.<>?")
+}
+
+func main() {
+	// Example usage
+	privateKey := "7a1a91f3a0c1e7167c3b32ecc88c8e14e6b7779d416d88fb7c4ff41b5aa5bdfd"
+
+	// Get password securely
+	password, err := SecurePasswordPrompt("Enter password to encrypt key: ")
+	if err != nil {
+		fmt.Printf("Error reading password: %v\n", err)
+		return
+	}
+
+	// Encrypt the key
+	encryptedKey, err := EncryptKey(privateKey, password)
+	if err != nil {
+		fmt.Printf("Error encrypting key: %v\n", err)
+		return
+	}
+
+	// Store the encrypted key
+	address := "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+	if err := StoreKey(address, encryptedKey); err != nil {
+		fmt.Printf("Error storing key: %v\n", err)
+		return
+	}
+
+	fmt.Println("Key encrypted and stored successfully!")
+}
+```
+
+#### 2. Secure Random Number Generation
+
+Predictable random numbers can lead to vulnerabilities. Always use cryptographically secure random number generators:
+
+```go
+// Insecure random number generation - DO NOT USE
+rand.Seed(time.Now().UnixNano())
+randomBytes := make([]byte, 32)
+for i := range randomBytes {
+    randomBytes[i] = byte(rand.Intn(256))
+}
+
+// Secure random number generation - RECOMMENDED
+secureRandomBytes := make([]byte, 32)
+if _, err := io.ReadFull(crypto/rand.Reader, secureRandomBytes); err != nil {
+    log.Fatal(err)
+}
+```
+
+#### 3. Transaction Replay Protection
+
+Without proper replay protection, an attacker can resubmit a transaction multiple times. Ethereum's EIP-155 introduced replay protection by including the chain ID in transaction signatures:
+
+```go
+func signTransactionWithReplayProtection(tx *types.Transaction, privateKey *ecdsa.PrivateKey, chainID *big.Int) (*types.Transaction, error) {
+    // Use EIP-155 signer which includes chainID in the signature
+    signer := types.NewEIP155Signer(chainID)
+    signedTx, err := types.SignTx(tx, signer, privateKey)
+    if err != nil {
+        return nil, err
+    }
+    return signedTx, nil
+}
+```
+
+#### 4. Smart Contract Vulnerabilities
+
+When interacting with smart contracts, be aware of common vulnerabilities:
+
+- **Reentrancy**: A contract function is called repeatedly before the first execution is complete
+- **Integer Overflow/Underflow**: Mathematical operations exceeding the size limits of variables
+- **Front-Running**: Exploiting transaction ordering in the mempool
+
+### Transaction Validation
+
+Always validate transactions before signing or broadcasting them:
+
+```go
+func validateTransaction(tx *Transaction, blockchain *Blockchain) error {
+    // 1. Check if inputs exist and are unspent
+    for _, input := range tx.Inputs {
+        if !blockchain.IsUTXO(input.TxID, input.OutputIndex) {
+            return errors.New("transaction input is not an unspent output")
+        }
+    }
+
+    // 2. Verify the sender owns the inputs
+    for _, input := range tx.Inputs {
+        prevOutput, err := blockchain.GetOutput(input.TxID, input.OutputIndex)
+        if err != nil {
+            return err
+        }
+
+        if !verifySignature(input.Signature, input.PublicKey, prevOutput.ScriptPubKey) {
+            return errors.New("invalid transaction signature")
+        }
+    }
+
+    // 3. Check that output values don't exceed input values
+    inputSum := 0
+    for _, input := range tx.Inputs {
+        prevOutput, _ := blockchain.GetOutput(input.TxID, input.OutputIndex)
+        inputSum += prevOutput.Value
+    }
+
+    outputSum := 0
+    for _, output := range tx.Outputs {
+        outputSum += output.Value
+
+        // Ensure no negative values
+        if output.Value <= 0 {
+            return errors.New("transaction outputs cannot have negative value")
+        }
+    }
+
+    if outputSum > inputSum {
+        return errors.New("transaction outputs exceed inputs")
+    }
+
+    return nil
+}
+```
+
+### Secure RPC Implementations
+
+When exposing blockchain services via RPC, implement proper security controls:
+
+```go
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
+	"log"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json"
+)
+
+// WalletService provides RPC methods for wallet operations
+type WalletService struct {
+	// Service state
+}
+
+// CreateTransactionArgs represents the arguments for the CreateTransaction method
+type CreateTransactionArgs struct {
+	Sender    string
+	Recipient string
+	Amount    string
+	APIKey    string
+}
+
+// TransactionResponse represents the response for the CreateTransaction method
+type TransactionResponse struct {
+	TxHash string
+}
+
+// CreateTransaction is an RPC method to create a transaction
+func (s *WalletService) CreateTransaction(r *http.Request, args *CreateTransactionArgs, result *TransactionResponse) error {
+	// Validate API key
+	if !validateAPIKey(args.APIKey) {
+		return errors.New("invalid API key")
+	}
+
+	// Rate limiting (implement with a proper rate limiter)
+	if isRateLimited(getClientIP(r)) {
+		return errors.New("rate limit exceeded")
+	}
+
+	// Log the request (excluding sensitive data)
+	log.Printf("Transaction request: from=%s, to=%s, amount=%s",
+		anonymizeAddress(args.Sender),
+		anonymizeAddress(args.Recipient),
+		args.Amount)
+
+	// Create and sign transaction
+	// ...
+
+	// Set result
+	result.TxHash = "0x123..."
+	return nil
+}
+
+// Setup a secure RPC server
+func main() {
+	// Create a new RPC server
+	rpcServer := rpc.NewServer()
+	rpcServer.RegisterCodec(json.NewCodec(), "application/json")
+
+	// Register services
+	walletService := new(WalletService)
+	rpcServer.RegisterService(walletService, "Wallet")
+
+	// Create router
+	router := mux.NewRouter()
+	router.Handle("/rpc", rpcServer)
+
+	// Add middleware
+	router.Use(loggingMiddleware)
+	router.Use(securityHeadersMiddleware)
+
+	// Load TLS certificates
+	cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
+	if err != nil {
+		log.Fatalf("Failed to load certificates: %v", err)
+	}
+
+	// Configure TLS
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		},
+	}
+
+	// Create HTTPS server
+	server := &http.Server{
+		Addr:         ":8443",
+		Handler:      router,
+		TLSConfig:    tlsConfig,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Start the server
+	log.Println("Starting secure RPC server on :8443")
+	log.Fatal(server.ListenAndServeTLS("", ""))
+}
+
+// Middleware to add security headers
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Helper functions
+func validateAPIKey(apiKey string) bool {
+	// Implement proper API key validation
+	return apiKey == "valid-api-key"
+}
+
+func isRateLimited(clientIP string) bool {
+	// Implement proper rate limiting
+	return false
+}
+
+func getClientIP(r *http.Request) string {
+	// Get client IP, respecting X-Forwarded-For if behind a proxy
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	}
+	return ip
+}
+
+func anonymizeAddress(address string) string {
+	if len(address) <= 10 {
+		return address
+	}
+	return address[:6] + "..." + address[len(address)-4:]
+}
+```
+
+### Zero-Knowledge Proofs in Go
+
+Zero-knowledge proofs (ZKPs) allow one party to prove knowledge of a value without revealing the value itself. ZKPs are increasingly important for privacy-preserving blockchain applications.
+
+Here's an example implementing a simple ZKP system using the Bulletproofs library:
+
+```go
+package main
+
+import (
+	"crypto/rand"
+	"fmt"
+	"log"
+	"math/big"
+
+	"github.com/gtank/cryptopasta"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/mimc"
+)
+
+// Circuit defines a ZKP circuit for proving knowledge of a preimage
+type Circuit struct {
+	// Public inputs (visible to verifier)
+	Hash frontend.Variable `gnark:",public"`
+
+	// Private inputs (known only to prover)
+	Preimage frontend.Variable
+}
+
+// Define defines the circuit constraints
+func (c *Circuit) Define(api frontend.API) error {
+	// Hash the preimage using MiMC
+	mimcHash, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
+	}
+
+	mimcHash.Write(c.Preimage)
+	api.AssertIsEqual(c.Hash, mimcHash.Sum())
+
+	return nil
+}
+
+func main() {
+	// 1. Setup the circuit
+	var circuit Circuit
+	r1cs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
+	if err != nil {
+		log.Fatalf("Failed to compile circuit: %v", err)
+	}
+
+	// 2. Generate proving and verification keys
+	pk, vk, err := groth16.Setup(r1cs)
+	if err != nil {
+		log.Fatalf("Failed to set up circuit: %v", err)
+	}
+
+	// 3. Define a witness (the actual values)
+	preimage := "secret value"
+
+	// 4. Create a hash of the preimage (using MiMC for compatibility)
+	mimcHash := mimc.NewMiMC()
+	mimcHash.Write([]byte(preimage))
+	hash := mimcHash.Sum(nil)
+
+	// 5. Create and fill the witness
+	var witness Circuit
+	witness.Preimage = preimage
+	witness.Hash = hash
+
+	// 6. Generate a proof
+	proof, err := groth16.Prove(r1cs, pk, &witness)
+	if err != nil {
+		log.Fatalf("Failed to generate proof: %v", err)
+	}
+
+	// 7. Define public inputs for verification
+	var publicInputs Circuit
+	publicInputs.Hash = hash
+
+	// 8. Verify the proof
+	err = groth16.Verify(proof, vk, &publicInputs)
+	if err != nil {
+		log.Fatalf("Failed to verify proof: %v", err)
+	}
+
+	fmt.Println("Proof verified successfully!")
+}
+```
+
+### Auditing and Formal Verification
+
+Regular security audits and formal verification are essential for blockchain applications. Here are some tools and techniques:
+
+1. **Automatic code analysis**:
+
+   - Use `go vet` and static analysis tools
+   - Implement pre-commit hooks to catch security issues
+
+2. **Formal verification**:
+
+   - Use tools like TLA+ or Coq to prove correctness
+   - Model critical paths in your application
+
+3. **Regular security audits**:
+   - Conduct penetration testing
+   - Hire external security researchers
+
+### Conclusion
+
+Security in blockchain applications requires constant vigilance. Following these best practices helps mitigate common vulnerabilities:
+
+1. **Protect private keys** with strong encryption and secure storage
+2. **Use cryptographically secure random number generation**
+3. **Implement transaction replay protection**
+4. **Validate all inputs** thoroughly before processing
+5. **Secure your RPC endpoints** with proper authentication and rate limiting
+6. **Consider privacy-enhancing technologies** like zero-knowledge proofs
+7. **Conduct regular security audits** and formal verification
+
+Remember that security is a continuous process, not a one-time effort. Stay updated on the latest vulnerabilities and security techniques in the blockchain space.
+
+## **34.10 Real-world Applications and Case Studies**
+
+- Decentralized finance (DeFi) implementations
+- NFT marketplaces and platforms
+- Supply chain traceability
+- Identity management systems
+
+## **34.11 Regulatory Compliance and Legal Considerations**
+
+- KYC/AML integration
+- Transaction monitoring
+- Compliance reporting
+- Privacy-preserving techniques
+
+## **34.12 Conclusion**
+
+- Future of Go in blockchain development
+- Emerging trends in cryptocurrency
+- Building a career in blockchain with Go
 
 ## **34.5 Wallet Implementation**
 
@@ -2288,14 +3132,6 @@ func signTransaction(client *ethclient.Client, privateKey *ecdsa.PrivateKey, to 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get network ID: %w", err)
 	}
-	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create authorized transactor: %w", err)
-	}
-	auth.Nonce = big.NewInt(int64(nonce))
-	auth.Value = big.NewInt(0)     // No ETH sent
-	auth.GasLimit = uint64(3000000) // Gas limit
-	auth.GasPrice = gasPrice
 
 	// Create transaction
 	tx := types.NewTransaction(nonce, to, amount, 21000, gasPrice, nil)
@@ -2372,7 +3208,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/tyler-smith/go-bip39"
 )
@@ -2592,22 +3427,23 @@ Securely storing private keys is crucial for blockchain applications. Here's a s
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/crypto/scrypt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/crypto/scrypt"
 )
 
 // EncryptedKeystore represents an encrypted private key
@@ -2680,10 +3516,10 @@ func encryptWallet(data *WalletData, password string) (*EncryptedKeystore, error
 		KDF:        "scrypt",
 		MAC:        hex.EncodeToString(mac[:]),
 	}
-	encrypted.KDFParams.N = scryptParams.N
-	encrypted.KDFParams.R = scryptParams.R
-	encrypted.KDFParams.P = scryptParams.P
-	encrypted.KDFParams.DKLen = scryptParams.DKLen
+	encrypted.KDFParams.N = 1 << 18
+	encrypted.KDFParams.R = 8
+	encrypted.KDFParams.P = 1
+	encrypted.KDFParams.DKLen = 32
 
 	return encrypted, nil
 }
@@ -2726,7 +3562,7 @@ func decryptWallet(encrypted *EncryptedKeystore, password string) (*WalletData, 
 
 	// Verify MAC
 	calculatedMAC := sha256.Sum256(append(derivedKey[16:], ciphertext...))
-	if !hmac.Equal(calculatedMAC[:], mac) {
+	if !bytes.Equal(calculatedMAC[:], mac) {
 		return nil, fmt.Errorf("invalid password (MAC mismatch)")
 	}
 
@@ -2824,51 +3660,3 @@ These examples demonstrate the key components of a blockchain wallet implementat
 5. **Secure Storage**: Encrypting and storing wallet data securely
 
 In a production environment, you would typically use established libraries like go-ethereum's accounts package or btcutil for these operations, but understanding the underlying concepts is essential for blockchain developers.
-
-## **34.6 Interacting with Blockchain Networks**
-
-- Ethereum client implementation
-- Bitcoin integration
-- Solana RPC clients
-- Cross-chain interactions
-
-## **34.7 Building Decentralized Applications (dApps)**
-
-- Architecture patterns for Web3 applications
-- Backend services for dApps
-- Authentication with wallets
-- Handling blockchain events
-
-## **34.8 Layer 2 Solutions and Scaling**
-
-- Implementing state channels
-- Optimistic rollups
-- Zero-knowledge proofs
-- Sidechains and cross-chain bridges
-
-## **34.9 Security Best Practices**
-
-- Common vulnerabilities in blockchain applications
-- Secure key management
-- Transaction validation and replay protection
-- Auditing and formal verification
-
-## **34.10 Real-world Applications and Case Studies**
-
-- Decentralized finance (DeFi) implementations
-- NFT marketplaces and platforms
-- Supply chain traceability
-- Identity management systems
-
-## **34.11 Regulatory Compliance and Legal Considerations**
-
-- KYC/AML integration
-- Transaction monitoring
-- Compliance reporting
-- Privacy-preserving techniques
-
-## **34.12 Conclusion**
-
-- Future of Go in blockchain development
-- Emerging trends in cryptocurrency
-- Building a career in blockchain with Go

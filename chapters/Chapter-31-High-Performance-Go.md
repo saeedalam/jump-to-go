@@ -493,6 +493,21 @@ func main() {
 Design data structures with cache locality in mind:
 
 ```go
+// Define the Entity type
+type Entity struct {
+    ID        int
+    Position  Vector
+    Velocity  Vector
+    Health    int
+    Active    bool
+    // Other entity properties
+}
+
+// Define Vector type for positions and velocities
+type Vector struct {
+    X, Y, Z float64
+}
+
 // Cache-unfriendly: Scattered memory access pattern
 type EntityManager struct {
     Entities []*Entity
@@ -536,13 +551,17 @@ func buildString(items []string) string {
 
 // Efficient: Using strings.Builder
 func buildStringEfficient(items []string) string {
+    import (
+        "strings"
+    )
+
     // Preallocation hint
     var sb strings.Builder
     sb.Grow(len(items) * 8) // Rough estimate
 
     for _, item := range items {
         sb.WriteString(item)
-        sb.WriteByte(',')
+        sb.WriteRune(',')
     }
 
     return sb.String()
@@ -554,6 +573,12 @@ func buildStringEfficient(items []string) string {
 Implement the `MarshalJSON` and `UnmarshalJSON` methods to control JSON serialization:
 
 ```go
+import (
+    "bytes"
+    "strconv"
+    "time"
+)
+
 type Transaction struct {
     ID        int64
     Amount    float64

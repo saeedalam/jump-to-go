@@ -248,47 +248,50 @@ func (a *ExternalPaymentGatewayAdapter) ProcessPayment(payment *domain.Payment) 
     externalPayment := &client.PaymentRequest{
         Amount:      payment.Amount.Value(),
         Currency:    payment.Amount.Currency(),
-        CardNumber:  payment.CreditCard.Number(),
-        ExpiryMonth: payment.CreditCard.ExpiryMonth(),
-        ExpiryYear:  payment.CreditCard.ExpiryYear(),
-        CVV:         payment.CreditCard.CVV(),
+        CardNumber:  payment.CardDetails.MaskedNumber(),
+        CardExpiry:  payment.CardDetails.ExpiryDate(),
+        CustomerIP:  payment.CustomerIPAddress,
         Description: payment.Description,
     }
 
-    // Call external service
-    response, err := a.client.ProcessPayment(externalPayment)
+    // Call external payment gateway
+    externalResult, err := a.client.ProcessPayment(externalPayment)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("external payment gateway error: %w", err)
     }
 
-    // Convert response back to our domain model
+    // Convert external result back to our domain model
     result := &domain.PaymentResult{
-        TransactionID: response.TransactionID,
-        Success:       response.Status == "approved",
-        Status:        mapStatus(response.Status),
-        ErrorMessage:  response.ErrorMessage,
-        ProcessedAt:   response.Timestamp,
+        TransactionID:    externalResult.TransactionID,
+        Status:           convertStatus(externalResult.Status),
+        ProcessedAt:      time.Now(),
+        AuthorizationCode: externalResult.AuthCode,
     }
 
     return result, nil
 }
 
-// mapStatus converts external payment status to our domain status
-func mapStatus(externalStatus string) domain.PaymentStatus {
+// convertStatus maps external payment status to our domain model
+func convertStatus(externalStatus string) string {
     switch externalStatus {
     case "approved":
-        return domain.PaymentStatusApproved
+        return "succeeded"
     case "declined":
-        return domain.PaymentStatusDeclined
+        return "failed"
     case "pending":
-        return domain.PaymentStatusPending
+        return "pending"
     default:
-        return domain.PaymentStatusFailed
+        return "unknown"
     }
 }
 ```
 
-This adapter translates between our clean domain model and the external system's model, protecting our domain from being corrupted by external concepts.
+This anticorruption layer example demonstrates:
+
+1. **Isolation**: The domain model is protected from external concepts
+2. **Translation**: Bidirectional conversion between domain and external models
+3. **Error Handling**: External errors are wrapped in domain-friendly formats
+4. **Terminology Mapping**: External terms are translated to ubiquitous language
 
 #### **3. Published Language with Go Structs**
 
@@ -2897,41 +2900,497 @@ When designing a microservice architecture based on DDD:
 3. **Use Domain Events**: Communicate between services using domain events
 4. **Implement Anticorruption Layers**: Protect your domain model from external services
 
-### **27.4.4 Common Pitfalls and How to Avoid Them**
+### **27.4.4 Implementing the Repository Pattern**
 
-**Anemic Domain Model**:
+The Repository pattern provides a way to access domain objects without exposing details of the underlying data store. Let's implement a comprehensive repository pattern for our e-commerce domain:
 
-- Symptoms: Entities with just getters and setters, business logic in services
-- Solution: Move business logic into entities and value objects
+```go
+// ordering/domain/repository.go
+package domain
 
-**Overengineering**:
+import (
+	"context"
+	"errors"
+)
 
-- Symptoms: Complex designs for simple problems, too many abstractions
-- Solution: Start simple, add complexity only when needed
+// OrderRepository defines the interface for order persistence
+type OrderRepository interface {
+	Save(ctx context.Context, order *Order) error
+	FindByID(ctx context.Context, id OrderID) (*Order, error)
+	FindByCustomer(ctx context.Context, customerID CustomerID) ([]*Order, error)
+	Update(ctx context.Context, order *Order) error
+	Delete(ctx context.Context, id OrderID) error
+}
 
-**Ignoring Bounded Contexts**:
+// Common repository errors
+var (
+	ErrOrderNotFound = errors.New("order not found")
+	ErrDuplicateID   = errors.New("order with this ID already exists")
+	ErrConcurrentModification = errors.New("order was modified concurrently")
+)
+```
 
-- Symptoms: Single model for the entire application, inconsistent terminology
-- Solution: Explicitly define and enforce context boundaries
+Now, let's implement this repository using PostgreSQL:
 
-**Repository Bloat**:
+```go
+// ordering/infrastructure/postgres_repository.go
+package infrastructure
 
-- Symptoms: Repositories with too many query methods, exposing implementation details
-- Solution: Keep repositories focused on aggregate persistence, use specialized queries for read operations
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
 
-**Misusing Value Objects**:
+	"github.com/e-commerce/ordering/domain"
+	_ "github.com/lib/pq"
+)
 
-- Symptoms: Using primitive types for domain concepts, mutable value objects
-- Solution: Create value objects for domain concepts, ensure immutability
+// PostgresOrderRepository implements the OrderRepository interface with PostgreSQL
+type PostgresOrderRepository struct {
+	db *sql.DB
+}
 
-## **27.5 Conclusion**
+// NewPostgresOrderRepository creates a new PostgreSQL order repository
+func NewPostgresOrderRepository(db *sql.DB) *PostgresOrderRepository {
+	return &PostgresOrderRepository{db: db}
+}
 
-Domain-Driven Design provides a powerful approach to building software that aligns closely with business needs. By focusing on the core domain and using a ubiquitous language, DDD helps create systems that are both technically sound and business-relevant.
+// Save persists a new order to the database
+func (r *PostgresOrderRepository) Save(ctx context.Context, order *domain.Order) error {
+	// Start a transaction
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback() // Rollback if not committed
 
-Go's simplicity, strong typing, and emphasis on clarity make it an excellent language for implementing DDD. The combination of Go's pragmatic approach with DDD's focus on the domain creates software that is both maintainable and valuable to the business.
+	// Check if order already exists
+	var exists bool
+	err = tx.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1)",
+		order.ID().String()).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("error checking order existence: %w", err)
+	}
+	if exists {
+		return domain.ErrDuplicateID
+	}
 
-In this chapter, we've explored both strategic and tactical aspects of DDD, showing how to implement them in Go. From modeling the domain with entities and value objects to structuring the application with bounded contexts and aggregates, we've covered the essential patterns and practices of DDD.
+	// Marshal order items to JSON
+	itemsJSON, err := json.Marshal(mapOrderItemsToDTO(order.Items()))
+	if err != nil {
+		return fmt.Errorf("error marshaling order items: %w", err)
+	}
 
-As you apply these principles to your own projects, remember that DDD is not about following patterns rigidly, but about understanding the domain deeply and expressing that understanding in code. Start with a focus on the core domain, establish a ubiquitous language, and let the technical design emerge from the domain model.
+	// Insert order
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO orders (
+			id, customer_id, status, total_amount, currency,
+			items, shipping_address, billing_address,
+			created_at, updated_at, version
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		order.ID().String(),
+		order.CustomerID().String(),
+		string(order.Status()),
+		order.TotalAmount().Amount(),
+		order.TotalAmount().Currency(),
+		itemsJSON,
+		addressToJSON(order.ShippingAddress()),
+		addressToJSON(order.BillingAddress()),
+		order.CreatedAt(),
+		order.UpdatedAt(),
+		order.Version(),
+	)
+	if err != nil {
+		return fmt.Errorf("error inserting order: %w", err)
+	}
 
-By combining DDD with Go's strengths, you can build software that not only meets technical requirements but also delivers real business value.
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return nil
+}
+
+// FindByID retrieves an order by its ID
+func (r *PostgresOrderRepository) FindByID(ctx context.Context, id domain.OrderID) (*domain.Order, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT
+			id, customer_id, status, total_amount, currency,
+			items, shipping_address, billing_address,
+			created_at, updated_at, version
+		FROM orders
+		WHERE id = $1`,
+		id.String())
+
+	return r.scanOrder(row)
+}
+
+// FindByCustomer retrieves all orders for a customer
+func (r *PostgresOrderRepository) FindByCustomer(ctx context.Context, customerID domain.CustomerID) ([]*domain.Order, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			id, customer_id, status, total_amount, currency,
+			items, shipping_address, billing_address,
+			created_at, updated_at, version
+		FROM orders
+		WHERE customer_id = $1
+		ORDER BY created_at DESC`,
+		customerID.String())
+	if err != nil {
+		return nil, fmt.Errorf("error querying orders: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []*domain.Order
+	for rows.Next() {
+		order, err := r.scanOrderRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating order rows: %w", err)
+	}
+
+	return orders, nil
+}
+
+// Update updates an existing order in the database
+func (r *PostgresOrderRepository) Update(ctx context.Context, order *domain.Order) error {
+	// Start a transaction
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback() // Rollback if not committed
+
+	// Get current version
+	var currentVersion int
+	err = tx.QueryRowContext(ctx,
+		"SELECT version FROM orders WHERE id = $1",
+		order.ID().String()).Scan(&currentVersion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.ErrOrderNotFound
+		}
+		return fmt.Errorf("error checking order version: %w", err)
+	}
+
+	// Check for concurrent modification
+	if currentVersion != order.Version() {
+		return domain.ErrConcurrentModification
+	}
+
+	// Increment version
+	newVersion := order.Version() + 1
+
+	// Marshal order items to JSON
+	itemsJSON, err := json.Marshal(mapOrderItemsToDTO(order.Items()))
+	if err != nil {
+		return fmt.Errorf("error marshaling order items: %w", err)
+	}
+
+	// Update order
+	result, err := tx.ExecContext(ctx, `
+		UPDATE orders
+		SET
+			status = $1,
+			total_amount = $2,
+			currency = $3,
+			items = $4,
+			shipping_address = $5,
+			billing_address = $6,
+			updated_at = $7,
+			version = $8
+		WHERE id = $9 AND version = $10`,
+		string(order.Status()),
+		order.TotalAmount().Amount(),
+		order.TotalAmount().Currency(),
+		itemsJSON,
+		addressToJSON(order.ShippingAddress()),
+		addressToJSON(order.BillingAddress()),
+		time.Now().UTC(),
+		newVersion,
+		order.ID().String(),
+		order.Version(),
+	)
+	if err != nil {
+		return fmt.Errorf("error updating order: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return domain.ErrConcurrentModification
+	}
+
+	// Update the order version in memory
+	order.IncrementVersion()
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return nil
+}
+
+// Delete removes an order from the database
+func (r *PostgresOrderRepository) Delete(ctx context.Context, id domain.OrderID) error {
+	result, err := r.db.ExecContext(ctx,
+		"DELETE FROM orders WHERE id = $1",
+		id.String())
+	if err != nil {
+		return fmt.Errorf("error deleting order: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return domain.ErrOrderNotFound
+	}
+
+	return nil
+}
+
+// Helper methods for scanning rows and mapping between domain and DTO
+
+func (r *PostgresOrderRepository) scanOrder(row *sql.Row) (*domain.Order, error) {
+	var (
+		id, customerID, status, currency string
+		totalAmount                      float64
+		itemsJSON, shippingAddrJSON, billingAddrJSON []byte
+		createdAt, updatedAt             time.Time
+		version                          int
+	)
+
+	err := row.Scan(
+		&id, &customerID, &status, &totalAmount, &currency,
+		&itemsJSON, &shippingAddrJSON, &billingAddrJSON,
+		&createdAt, &updatedAt, &version,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrOrderNotFound
+		}
+		return nil, fmt.Errorf("error scanning order row: %w", err)
+	}
+
+	// Parse order items
+	var itemDTOs []orderItemDTO
+	if err = json.Unmarshal(itemsJSON, &itemDTOs); err != nil {
+		return nil, fmt.Errorf("error unmarshaling order items: %w", err)
+	}
+	items := mapDTOToOrderItems(itemDTOs)
+
+	// Parse addresses
+	shippingAddr, err := jsonToAddress(shippingAddrJSON)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing shipping address: %w", err)
+	}
+
+	billingAddr, err := jsonToAddress(billingAddrJSON)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing billing address: %w", err)
+	}
+
+	// Reconstruct the order
+	orderID, err := domain.ParseOrderID(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid order ID: %w", err)
+	}
+
+	custID, err := domain.ParseCustomerID(customerID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid customer ID: %w", err)
+	}
+
+	money := domain.NewMoney(totalAmount, currency)
+
+	order, err := domain.ReconstructOrder(
+		orderID,
+		custID,
+		domain.OrderStatus(status),
+		money,
+		items,
+		shippingAddr,
+		billingAddr,
+		createdAt,
+		updatedAt,
+		version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error reconstructing order: %w", err)
+	}
+
+	return order, nil
+}
+
+func (r *PostgresOrderRepository) scanOrderRow(rows *sql.Rows) (*domain.Order, error) {
+	var (
+		id, customerID, status, currency string
+		totalAmount                      float64
+		itemsJSON, shippingAddrJSON, billingAddrJSON []byte
+		createdAt, updatedAt             time.Time
+		version                          int
+	)
+
+	err := rows.Scan(
+		&id, &customerID, &status, &totalAmount, &currency,
+		&itemsJSON, &shippingAddrJSON, &billingAddrJSON,
+		&createdAt, &updatedAt, &version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error scanning order row: %w", err)
+	}
+
+	// Parse order items
+	var itemDTOs []orderItemDTO
+	if err = json.Unmarshal(itemsJSON, &itemDTOs); err != nil {
+		return nil, fmt.Errorf("error unmarshaling order items: %w", err)
+	}
+	items := mapDTOToOrderItems(itemDTOs)
+
+	// Parse addresses
+	shippingAddr, err := jsonToAddress(shippingAddrJSON)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing shipping address: %w", err)
+	}
+
+	billingAddr, err := jsonToAddress(billingAddrJSON)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing billing address: %w", err)
+	}
+
+	// Reconstruct the order
+	orderID, err := domain.ParseOrderID(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid order ID: %w", err)
+	}
+
+	custID, err := domain.ParseCustomerID(customerID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid customer ID: %w", err)
+	}
+
+	money := domain.NewMoney(totalAmount, currency)
+
+	order, err := domain.ReconstructOrder(
+		orderID,
+		custID,
+		domain.OrderStatus(status),
+		money,
+		items,
+		shippingAddr,
+		billingAddr,
+		createdAt,
+		updatedAt,
+		version,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error reconstructing order: %w", err)
+	}
+
+	return order, nil
+}
+
+// DTO types for database storage
+
+type orderItemDTO struct {
+	ProductID    string  `json:"product_id"`
+	Quantity     int     `json:"quantity"`
+	UnitPrice    float64 `json:"unit_price"`
+	Currency     string  `json:"currency"`
+	TotalPrice   float64 `json:"total_price"`
+}
+
+type addressDTO struct {
+	Street     string `json:"street"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	PostalCode string `json:"postal_code"`
+	Country    string `json:"country"`
+}
+
+// Mapping functions between domain objects and DTOs
+
+func mapOrderItemsToDTO(items []domain.OrderItem) []orderItemDTO {
+	dtos := make([]orderItemDTO, len(items))
+	for i, item := range items {
+		dtos[i] = orderItemDTO{
+			ProductID:  item.ProductID().String(),
+			Quantity:   item.Quantity(),
+			UnitPrice:  item.UnitPrice().Amount(),
+			Currency:   item.UnitPrice().Currency(),
+			TotalPrice: item.TotalPrice().Amount(),
+		}
+	}
+	return dtos
+}
+
+func mapDTOToOrderItems(dtos []orderItemDTO) []domain.OrderItem {
+	items := make([]domain.OrderItem, len(dtos))
+	for i, dto := range dtos {
+		productID, _ := domain.ParseProductID(dto.ProductID)
+		unitPrice := domain.NewMoney(dto.UnitPrice, dto.Currency)
+		items[i] = domain.NewOrderItem(productID, dto.Quantity, unitPrice)
+	}
+	return items
+}
+
+func addressToJSON(addr domain.Address) []byte {
+	dto := addressDTO{
+		Street:     addr.Street(),
+		City:       addr.City(),
+		State:      addr.State(),
+		PostalCode: addr.PostalCode(),
+		Country:    addr.Country(),
+	}
+	data, _ := json.Marshal(dto)
+	return data
+}
+
+func jsonToAddress(data []byte) (domain.Address, error) {
+	var dto addressDTO
+	if err := json.Unmarshal(data, &dto); err != nil {
+		return domain.Address{}, err
+	}
+	return domain.NewAddress(
+		dto.Street,
+		dto.City,
+		dto.State,
+		dto.PostalCode,
+		dto.Country,
+	), nil
+}
+```
+
+This repository implementation demonstrates several key DDD principles:
+
+1. **Persistence Ignorance**: The domain model doesn't know anything about the database
+2. **Identity Management**: The repository is responsible for maintaining entity identity
+3. **Reconstitution**: The repository maps between the database and domain objects
+4. **Versioning**: The implementation handles optimistic concurrency control
+5. **Transactions**: The repository uses database transactions for consistency
+6. **Domain-Specific Errors**: Custom error types communicate domain-relevant issues
+
+When using the repository pattern in DDD, it's important to:
+
+1. Keep repositories focused on aggregate roots (one repository per aggregate)
+2. Encapsulate persistence details within the repository
+3. Use domain objects as input/output, not DTOs
+4. Handle transactions appropriately for aggregate consistency
+5. Implement proper error handling and mapping
+
+### **27.4.5 Common Pitfalls and How to Avoid Them**

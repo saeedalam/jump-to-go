@@ -166,7 +166,7 @@ This design includes essential fields and helps establish good practices like:
 
 An event bus enables communication between components through events. Let's create a simple in-memory implementation:
 
-```go
+````go
 // bus/memory.go
 package bus
 
@@ -248,6 +248,7 @@ func (b *MemoryBus) Publish(ctx context.Context, event *event.Event) error {
 			handler = b.middlewares[i](handler)
 		}
 
+		// Handle the event in a goroutine
 		go func(handler Handler) {
 			defer wg.Done()
 			if err := handler.HandleEvent(ctx, event); err != nil {
@@ -257,69 +258,51 @@ func (b *MemoryBus) Publish(ctx context.Context, event *event.Event) error {
 	}
 
 	// Wait for all handlers to complete
-	wg.Wait()
-	close(errs)
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
 
 	// Collect errors
-	var errMsgs []string
+	var errList []error
 	for err := range errs {
-		errMsgs = append(errMsgs, err.Error())
+		errList = append(errList, err)
 	}
 
-	if len(errMsgs) > 0 {
-		return fmt.Errorf("errors while processing event: %v", errMsgs)
+	// Return combined error if any occurred
+	if len(errList) > 0 {
+		return fmt.Errorf("errors occurred while publishing event: %v", errList)
 	}
 
 	return nil
 }
 
-// Use adds middleware to the event processing pipeline
-func (b *MemoryBus) Use(middleware Middleware) {
+// UseMiddleware adds middleware to the event bus
+func (b *MemoryBus) UseMiddleware(middleware Middleware) {
 	b.middlewareMu.Lock()
 	defer b.middlewareMu.Unlock()
 	b.middlewares = append(b.middlewares, middleware)
 }
-```
 
-This in-memory event bus provides:
+// Common middlewares for event handling
 
-- Type-based event routing
-- Concurrent processing of events
-- Support for middleware (for cross-cutting concerns)
-- Error aggregation
-- A simple but powerful API
-
-### **26.2.3 Creating Event Middleware**
-
-Middleware allows us to add cross-cutting concerns like logging, metrics, and error handling:
-
-```go
-// middleware/logging.go
-package middleware
-
-import (
-	"context"
-	"log"
-	"time"
-
-	"github.com/yourorg/eventsystem/bus"
-	"github.com/yourorg/eventsystem/event"
-)
-
-// Logging creates middleware that logs event processing
-func Logging() bus.Middleware {
-	return func(next bus.Handler) bus.Handler {
-		return bus.HandlerFunc(func(ctx context.Context, evt *event.Event) error {
+// LoggingMiddleware logs events as they are processed
+func LoggingMiddleware(logger *log.Logger) Middleware {
+	return func(next Handler) Handler {
+		return HandlerFunc(func(ctx context.Context, event *event.Event) error {
 			start := time.Now()
-			log.Printf("Processing event: %s (id: %s, source: %s)", evt.Type, evt.ID, evt.Source)
+			logger.Printf("Processing event %s (type: %s, source: %s)",
+				event.ID, event.Type, event.Source)
 
-			err := next.HandleEvent(ctx, evt)
+			err := next.HandleEvent(ctx, event)
 
-			elapsed := time.Since(start)
+			duration := time.Since(start)
 			if err != nil {
-				log.Printf("Error processing event %s (id: %s): %v [%s]", evt.Type, evt.ID, err, elapsed)
+				logger.Printf("Failed to process event %s after %v: %v",
+					event.ID, duration, err)
 			} else {
-				log.Printf("Successfully processed event %s (id: %s) [%s]", evt.Type, evt.ID, elapsed)
+				logger.Printf("Successfully processed event %s in %v",
+					event.ID, duration)
 			}
 
 			return err
@@ -327,149 +310,200 @@ func Logging() bus.Middleware {
 	}
 }
 
-// middleware/retry.go
-package middleware
-
-import (
-	"context"
-	"time"
-
-	"github.com/yourorg/eventsystem/bus"
-	"github.com/yourorg/eventsystem/event"
-)
-
-// RetryOptions configures the retry behavior
-type RetryOptions struct {
-	MaxRetries  int
-	InitialWait time.Duration
-	MaxWait     time.Duration
-	Multiplier  float64
-}
-
-// DefaultRetryOptions provides sensible defaults
-func DefaultRetryOptions() RetryOptions {
-	return RetryOptions{
-		MaxRetries:  3,
-		InitialWait: 100 * time.Millisecond,
-		MaxWait:     2 * time.Second,
-		Multiplier:  2.0,
-	}
-}
-
-// Retry creates middleware that retries failed event processing
-func Retry(opts RetryOptions) bus.Middleware {
-	return func(next bus.Handler) bus.Handler {
-		return bus.HandlerFunc(func(ctx context.Context, evt *event.Event) error {
+// RetryMiddleware retries event handling with exponential backoff
+func RetryMiddleware(maxRetries int, initialBackoff time.Duration) Middleware {
+	return func(next Handler) Handler {
+		return HandlerFunc(func(ctx context.Context, event *event.Event) error {
 			var err error
-			wait := opts.InitialWait
+			backoff := initialBackoff
 
-			for attempt := 0; attempt <= opts.MaxRetries; attempt++ {
-				// First attempt or retry
+			for attempt := 0; attempt <= maxRetries; attempt++ {
+				// If this isn't the first attempt, wait before retrying
 				if attempt > 0 {
 					select {
+					case <-time.After(backoff):
+						// Continue after backoff
 					case <-ctx.Done():
+						// Context was canceled
 						return ctx.Err()
-					case <-time.After(wait):
-						// Exponential backoff with jitter
-						wait = time.Duration(float64(wait) * opts.Multiplier)
-						if wait > opts.MaxWait {
-							wait = opts.MaxWait
-						}
 					}
+					// Increase backoff for next attempt
+					backoff *= 2
 				}
 
-				err = next.HandleEvent(ctx, evt)
+				// Attempt to handle the event
+				err = next.HandleEvent(ctx, event)
 				if err == nil {
-					return nil // Success
+					// Success, no need to retry
+					return nil
+				}
+
+				// Check if we should not retry this error
+				if _, ok := err.(NonRetryableError); ok {
+					return err
 				}
 			}
 
-			return err // Return the last error after all retries
+			// All retries failed
+			return fmt.Errorf("failed after %d retries: %w", maxRetries, err)
 		})
 	}
 }
-```
 
-### **26.2.4 Typed Events for Better Type Safety**
+// NonRetryableError is an error that should not be retried
+type NonRetryableError struct {
+	Err error
+}
 
-While a generic event structure is flexible, typed events provide better compile-time safety:
+// Error returns the error message
+func (e NonRetryableError) Error() string {
+	return fmt.Sprintf("non-retryable error: %v", e.Err)
+}
+
+// Unwrap returns the wrapped error
+func (e NonRetryableError) Unwrap() error {
+	return e.Err
+}
+
+// CorrelationMiddleware ensures correlation IDs are propagated
+func CorrelationMiddleware() Middleware {
+	return func(next Handler) Handler {
+		return HandlerFunc(func(ctx context.Context, evt *event.Event) error {
+			// If the event doesn't have a correlation ID but the context does,
+			// add it to the event
+			if evt.CorrelationID == "" {
+				if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+					evt.CorrelationID = correlationID
+				}
+			}
+
+			// Add event ID as causation ID for any events produced by this handler
+			ctxWithCausation := context.WithValue(ctx, "causation_id", evt.ID)
+
+			// Add correlation ID to context if present in event
+			if evt.CorrelationID != "" {
+				ctxWithCausation = context.WithValue(
+					ctxWithCausation, "correlation_id", evt.CorrelationID)
+			}
+
+			// Call next handler with enhanced context
+			return next.HandleEvent(ctxWithCausation, evt)
+		})
+	}
+}
+
+### **26.2.3 Implementing Event Handlers**
+
+Event handlers process events and perform actions in response. Let's create some example handlers:
 
 ```go
-// domain/user/events.go
-package user
+// handlers/order_handlers.go
+package handlers
 
 import (
-	"time"
+	"context"
+	"fmt"
+	"log"
 
-	"github.com/google/uuid"
 	"github.com/yourorg/eventsystem/event"
 )
 
-const (
-	EventTypeUserCreated = "user.created"
-	EventTypeUserUpdated = "user.updated"
-	EventTypeUserDeleted = "user.deleted"
-
-	EventVersion = "1.0.0"
-)
-
-// User represents a user in the system
-type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// OrderCreatedHandler processes OrderCreated events
+type OrderCreatedHandler struct {
+	logger *log.Logger
 }
 
-// UserCreatedEvent represents a user creation event
-type UserCreatedEvent struct {
-	User User `json:"user"`
+// NewOrderCreatedHandler creates a new handler for OrderCreated events
+func NewOrderCreatedHandler(logger *log.Logger) *OrderCreatedHandler {
+	return &OrderCreatedHandler{logger: logger}
 }
 
-// ToEvent converts the typed event to a generic event
-func (e UserCreatedEvent) ToEvent(source string) *event.Event {
-	return event.NewEvent(
-		EventTypeUserCreated,
-		source,
-		map[string]interface{}{
-			"user": e.User,
-		},
-		EventVersion,
-	)
-}
-
-// FromEvent creates a typed event from a generic event
-func UserCreatedEventFromEvent(evt *event.Event) (UserCreatedEvent, error) {
-	userData, ok := evt.Data["user"].(map[string]interface{})
+// HandleEvent processes the event
+func (h *OrderCreatedHandler) HandleEvent(ctx context.Context, evt *event.Event) error {
+	// Extract order data from event
+	orderID, ok := evt.Data["order_id"].(string)
 	if !ok {
-		return UserCreatedEvent{}, fmt.Errorf("invalid event data format")
+		return fmt.Errorf("missing or invalid order_id in event data")
 	}
 
-	// In a real implementation, you would use proper JSON unmarshaling
-	// This is simplified for demonstration
-	user := User{
-		ID:        userData["id"].(string),
-		Email:     userData["email"].(string),
-		Name:      userData["name"].(string),
-		CreatedAt: time.Now(), // Would parse from the event
-		UpdatedAt: time.Now(), // Would parse from the event
+	customerID, ok := evt.Data["customer_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid customer_id in event data")
 	}
 
-	return UserCreatedEvent{User: user}, nil
+	// Log the event
+	h.logger.Printf("Order %s created for customer %s", orderID, customerID)
+
+	// In a real application, you might:
+	// 1. Update read models
+	// 2. Send a confirmation email
+	// 3. Initiate payment processing
+	// 4. Allocate inventory
+
+	return nil
 }
 
-// NewUserCreatedEvent creates a new user created event
-func NewUserCreatedEvent(user User) UserCreatedEvent {
-	return UserCreatedEvent{User: user}
+// PaymentCompletedHandler processes PaymentCompleted events
+type PaymentCompletedHandler struct {
+	logger   *log.Logger
+	eventBus event.Publisher
 }
 
-// UserUpdatedEvent and UserDeletedEvent would follow similar patterns
-```
+// NewPaymentCompletedHandler creates a new handler for PaymentCompleted events
+func NewPaymentCompletedHandler(logger *log.Logger, eventBus event.Publisher) *PaymentCompletedHandler {
+	return &PaymentCompletedHandler{
+		logger:   logger,
+		eventBus: eventBus,
+	}
+}
 
-### **26.2.5 Putting It All Together**
+// HandleEvent processes the event
+func (h *PaymentCompletedHandler) HandleEvent(ctx context.Context, evt *event.Event) error {
+	// Extract payment data
+	orderID, ok := evt.Data["order_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid order_id in event data")
+	}
 
-Here's how to use these components together:
+	amount, ok := evt.Data["amount"].(float64)
+	if !ok {
+		return fmt.Errorf("missing or invalid amount in event data")
+	}
+
+	// Log the payment
+	h.logger.Printf("Payment of $%.2f completed for order %s", amount, orderID)
+
+	// Publish a follow-up event indicating the order is ready for fulfillment
+	// Note: In a real application, you'd likely update the order status in a
+	// database before publishing this event
+	fulfillmentEvent := event.NewEvent(
+		"OrderReadyForFulfillment",
+		"order-service",
+		map[string]interface{}{
+			"order_id": orderID,
+		},
+		"1.0",
+	)
+
+	// Copy correlation info from the original event
+	fulfillmentEvent.WithCorrelation(
+		evt.CorrelationID,
+		evt.ID, // The current event ID becomes the causation ID
+	)
+
+	// Publish the event
+	if err := h.eventBus.Publish(ctx, fulfillmentEvent); err != nil {
+		h.logger.Printf("Failed to publish OrderReadyForFulfillment event: %v", err)
+		return err
+	}
+
+	return nil
+}
+````
+
+### **26.2.4 Putting It All Together**
+
+Let's see how these components work together in a simple application:
 
 ```go
 // main.go
@@ -478,68 +512,139 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/yourorg/eventsystem/bus"
-	"github.com/yourorg/eventsystem/domain/user"
-	"github.com/yourorg/eventsystem/middleware"
+	"github.com/yourorg/eventsystem/event"
+	"github.com/yourorg/eventsystem/handlers"
 )
 
 func main() {
-	// Create the event bus
+	// Initialize logger
+	logger := log.New(os.Stdout, "EVENT-SYSTEM: ", log.LstdFlags|log.Lshortfile)
+
+	// Create event bus
 	eventBus := bus.NewMemoryBus()
 
-	// Add middleware
-	eventBus.Use(middleware.Logging())
-	eventBus.Use(middleware.Retry(middleware.DefaultRetryOptions()))
+	// Add middlewares
+	eventBus.UseMiddleware(bus.LoggingMiddleware(logger))
+	eventBus.UseMiddleware(bus.RetryMiddleware(3, 100*time.Millisecond))
+	eventBus.UseMiddleware(bus.CorrelationMiddleware())
 
-	// Subscribe to user events
-	eventBus.SubscribeFunc(user.EventTypeUserCreated, handleUserCreated)
-	eventBus.SubscribeFunc(user.EventTypeUserUpdated, handleUserUpdated)
+	// Create and register event handlers
+	orderCreatedHandler := handlers.NewOrderCreatedHandler(logger)
+	paymentCompletedHandler := handlers.NewPaymentCompletedHandler(logger, eventBus)
 
-	// Create a user
-	newUser := user.User{
-		ID:        uuid.New().String(),
-		Email:     "jane@example.com",
-		Name:      "Jane Doe",
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
-	}
+	eventBus.Subscribe("OrderCreated", orderCreatedHandler)
+	eventBus.Subscribe("PaymentCompleted", paymentCompletedHandler)
+	eventBus.Subscribe("OrderReadyForFulfillment", bus.HandlerFunc(
+		func(ctx context.Context, evt *event.Event) error {
+			orderID := evt.Data["order_id"].(string)
+			logger.Printf("Order %s is ready for fulfillment", orderID)
+			return nil
+		},
+	))
 
-	// Create and publish the event
-	evt := user.NewUserCreatedEvent(newUser).ToEvent("user-service")
+	// Create context that will be canceled on shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	ctx := context.Background()
-	if err := eventBus.Publish(ctx, evt); err != nil {
-		log.Fatalf("Failed to publish event: %v", err)
-	}
+	// Set up signal handling for graceful shutdown
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	// Wait for handlers to complete (in a real app, you'd have a proper shutdown mechanism)
-	time.Sleep(time.Second)
+	go func() {
+		<-signals
+		logger.Println("Shutting down...")
+		cancel()
+	}()
+
+	// Simulate events
+	simulateOrderFlow(ctx, eventBus, logger)
+
+	logger.Println("System shutdown complete")
 }
 
-func handleUserCreated(ctx context.Context, evt *event.Event) error {
-	userEvt, err := user.UserCreatedEventFromEvent(evt)
-	if err != nil {
-		return err
+// simulateOrderFlow generates a sequence of events that represent an order lifecycle
+func simulateOrderFlow(ctx context.Context, eventBus *bus.MemoryBus, logger *log.Logger) {
+	// Generate a correlation ID for this flow
+	correlationID := "flow-" + time.Now().Format("20060102-150405")
+
+	// Create an order
+	orderID := "order-12345"
+	customerID := "customer-6789"
+
+	orderCreatedEvent := event.NewEvent(
+		"OrderCreated",
+		"simulation",
+		map[string]interface{}{
+			"order_id":    orderID,
+			"customer_id": customerID,
+			"items": []map[string]interface{}{
+				{
+					"product_id": "product-101",
+					"quantity":   2,
+					"price":      29.99,
+				},
+				{
+					"product_id": "product-202",
+					"quantity":   1,
+					"price":      49.99,
+				},
+			},
+			"total_amount": 109.97,
+		},
+		"1.0",
+	).WithCorrelation(correlationID, "")
+
+	logger.Println("Publishing OrderCreated event")
+	if err := eventBus.Publish(ctx, orderCreatedEvent); err != nil {
+		logger.Printf("Error publishing OrderCreated event: %v", err)
+		return
 	}
 
-	log.Printf("User created: %s (%s)", userEvt.User.Name, userEvt.User.ID)
-	// In a real app, you would do something with this event
+	// Simulate some delay
+	time.Sleep(500 * time.Millisecond)
 
-	return nil
-}
+	// Process payment
+	paymentCompletedEvent := event.NewEvent(
+		"PaymentCompleted",
+		"simulation",
+		map[string]interface{}{
+			"order_id":        orderID,
+			"payment_id":      "payment-9876",
+			"amount":          109.97,
+			"payment_method":  "credit_card",
+			"transaction_id":  "trans-4321",
+			"timestamp":       time.Now().Format(time.RFC3339),
+		},
+		"1.0",
+	).WithCorrelation(correlationID, orderCreatedEvent.ID)
 
-func handleUserUpdated(ctx context.Context, evt *event.Event) error {
-	// Similar implementation to handleUserCreated
-	return nil
+	logger.Println("Publishing PaymentCompleted event")
+	if err := eventBus.Publish(ctx, paymentCompletedEvent); err != nil {
+		logger.Printf("Error publishing PaymentCompleted event: %v", err)
+		return
+	}
+
+	// Wait for events to be processed
+	time.Sleep(1 * time.Second)
 }
 ```
 
-This foundation provides a solid starting point for building event-driven systems in Go. In the following sections, we'll expand on these concepts to build more sophisticated distributed event systems.
+This example demonstrates a simple in-memory event system with:
 
-## **26.3 Implementing Event Sourcing in Go**
+1. **Event Publishing and Subscription**: Events flow through the system via the event bus
+2. **Middleware**: Logging, retries, and correlation enhance the event processing
+3. **Event Chaining**: One event can trigger the publication of subsequent events
+4. **Correlation**: Events in a business flow are linked via correlation and causation IDs
+
+In a real-world application, you'd likely use a distributed message broker like Kafka or RabbitMQ rather than an in-memory implementation.
+
+## **26.3 Event Sourcing with Go**
 
 Event Sourcing is a powerful pattern that stores state changes as a sequence of events rather than just the current state. This approach provides a complete audit trail, enables temporal queries (what was the state at a specific time?), and forms the foundation for CQRS architectures.
 

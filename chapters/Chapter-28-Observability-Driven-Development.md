@@ -249,79 +249,60 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     logger := GetLoggerFromContext(r.Context())
     span := GetCurrentSpan(r.Context())
 
-    // Log and trace the operation
-    logger.Info().Msg("Processing order")
-    span.AddEvent("Processing order")
+    // Log with correlation ID and tracing info
+    logger.Info().
+        Str("operation", "process_request").
+        Str("trace_id", span.SpanContext().TraceID().String()).
+        Msg("Processing request")
 
-    // Perform business logic...
+    // Process the request
+    // ...
 
-    w.Write([]byte("Order processed"))
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("Request processed successfully"))
+}
+
+func main() {
+    // Set up router with middleware chain
+    router := http.NewServeMux()
+
+    // Create middleware chain
+    chain := RequestIDMiddleware(
+        LogMiddleware(
+            http.HandlerFunc(Handler),
+        ),
+    )
+
+    router.Handle("/process", chain)
+
+    // Start server
+    log.Printf("Starting server on :8080")
+    if err := http.ListenAndServe(":8080", router); err != nil {
+        log.Fatal(err)
+    }
 }
 ```
 
-This example demonstrates:
+This context-aware logging approach ensures that:
 
-1. **Common identifier**: A request ID is generated and used across all telemetry
-2. **Context propagation**: The context carries correlation IDs through the request
-3. **Enriched logs**: Logs include trace and span IDs for correlation
-4. **Labeled metrics**: Metrics include the request ID for correlation
-5. **Annotated spans**: Spans include the request ID as an attribute
+1. Each request has a unique identifier that flows through the entire request lifecycle
+2. Logs from different components processing the same request can be correlated
+3. Request context (method, path, etc.) is automatically included in all logs
+4. Tracing information is linked to logs for comprehensive observability
 
-#### **Best Practices for Logging**
+### **28.2.2 Metrics with Prometheus**
 
-When implementing logging in Go applications, follow these best practices:
+Metrics provide quantitative measurements of your application's behavior over time. They're essential for monitoring, alerting, and capacity planning. Prometheus has become the de facto standard for metrics collection in cloud-native applications.
 
-1. **Use structured logging**: Prefer structured logs over plain text
-2. **Include context**: Add relevant context to every log entry
-3. **Choose appropriate log levels**: Use different levels (debug, info, warn, error) consistently
-4. **Be careful with sensitive data**: Avoid logging passwords, tokens, or personal information
-5. **Don't overlog**: Excessive logging creates noise and can impact performance
-6. **Include request IDs**: Add unique identifiers to track requests across services
-7. **Log for humans and machines**: Ensure logs are both human-readable and machine-parseable
-8. **Consider log sampling**: In high-throughput systems, consider sampling verbose logs
+#### **Basic Prometheus Integration**
 
-With proper logging in place, you've established the first pillar of observability. Next, let's explore metrics.
-
-### **28.2.2 Metrics and Monitoring**
-
-Metrics provide numerical measurements of your application's behavior over time. They're essential for monitoring system health, performance, and business outcomes.
-
-#### **Types of Metrics**
-
-There are several types of metrics you should consider collecting:
-
-1. **System Metrics**: CPU, memory, disk, network usage
-2. **Application Metrics**: Request counts, error rates, response times
-3. **Business Metrics**: User signups, orders placed, revenue
-4. **Dependency Metrics**: Database query times, external API response times
-
-#### **The RED Method**
-
-For service monitoring, the RED method provides a simple framework:
-
-- **Rate**: Requests per second
-- **Errors**: Failed requests per second
-- **Duration**: Distribution of request latencies
-
-These three metrics give you a comprehensive view of service health.
-
-#### **The Four Golden Signals**
-
-Google's Site Reliability Engineering book recommends monitoring these four signals:
-
-- **Latency**: Time taken to serve requests
-- **Traffic**: Demand on your system
-- **Errors**: Rate of failed requests
-- **Saturation**: How "full" your system is
-
-#### **Using Prometheus with Go**
-
-Prometheus is a popular open-source monitoring system and time series database. The official Prometheus client library for Go makes it easy to instrument your code:
+Let's integrate Prometheus metrics into a Go web application:
 
 ```go
 package main
 
 import (
+    "log"
     "net/http"
     "time"
 
@@ -331,7 +312,7 @@ import (
 )
 
 var (
-    // Counter for total HTTP requests
+    // Define metrics
     httpRequestsTotal = promauto.NewCounterVec(
         prometheus.CounterOpts{
             Name: "http_requests_total",
@@ -340,55 +321,49 @@ var (
         []string{"method", "endpoint", "status"},
     )
 
-    // Histogram for HTTP request duration
     httpRequestDuration = promauto.NewHistogramVec(
         prometheus.HistogramOpts{
             Name:    "http_request_duration_seconds",
-            Help:    "HTTP request duration in seconds",
+            Help:    "Duration of HTTP requests in seconds",
             Buckets: prometheus.DefBuckets,
         },
         []string{"method", "endpoint"},
     )
 
-    // Gauge for active requests
-    httpRequestsInProgress = promauto.NewGaugeVec(
+    activeSessions = promauto.NewGauge(
         prometheus.GaugeOpts{
-            Name: "http_requests_in_progress",
-            Help: "Number of HTTP requests currently in progress",
+            Name: "active_sessions",
+            Help: "Number of active user sessions",
         },
-        []string{"method", "endpoint"},
+    )
+
+    queueSize = promauto.NewGauge(
+        prometheus.GaugeOpts{
+            Name: "task_queue_size",
+            Help: "Current number of tasks in the processing queue",
+        },
     )
 )
 
 // PrometheusMiddleware instruments HTTP handlers with metrics
 func PrometheusMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Track request start time
-        startTime := time.Now()
+        start := time.Now()
 
-        // Track in-progress requests
-        httpRequestsInProgress.WithLabelValues(r.Method, r.URL.Path).Inc()
-        defer httpRequestsInProgress.WithLabelValues(r.Method, r.URL.Path).Dec()
-
-        // Create response writer that captures status code
+        // Create a custom response writer to capture the status code
         rww := NewResponseWriterWrapper(w)
 
         // Call the next handler
         next.ServeHTTP(rww, r)
 
-        // Record metrics after request is processed
-        duration := time.Since(startTime).Seconds()
-        status := rww.StatusCode()
-
-        // Increment request counter
-        httpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
-
-        // Observe request duration
+        // Record metrics after the handler returns
+        duration := time.Since(start).Seconds()
         httpRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
+        httpRequestsTotal.WithLabelValues(r.Method, r.URL.Path, rww.StatusString()).Inc()
     })
 }
 
-// ResponseWriterWrapper captures the status code
+// ResponseWriterWrapper captures the status code for metrics
 type ResponseWriterWrapper struct {
     http.ResponseWriter
     statusCode int
@@ -405,175 +380,186 @@ func (rww *ResponseWriterWrapper) WriteHeader(code int) {
     rww.ResponseWriter.WriteHeader(code)
 }
 
-// StatusCode returns the captured status code
-func (rww *ResponseWriterWrapper) StatusCode() string {
+// StatusString returns the status code as a string
+func (rww *ResponseWriterWrapper) StatusString() string {
     return http.StatusText(rww.statusCode)
 }
 
-// Handler for business logic
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-    time.Sleep(time.Duration(100+time.Now().UnixNano()%100) * time.Millisecond) // Simulate work
-    w.Write([]byte("Hello, world!"))
+// HomeHandler is a simple handler for demonstration
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+    // Simulate some work
+    time.Sleep(time.Duration(100+time.Now().UnixNano()%400) * time.Millisecond)
+
+    // Update a gauge metric (e.g., simulating current queue size)
+    queueSize.Set(float64(time.Now().Unix() % 10))
+
+    w.Write([]byte("Hello, World!"))
+}
+
+// LoginHandler simulates a user login
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+    // Increment active sessions gauge
+    activeSessions.Inc()
+
+    w.Write([]byte("Login successful"))
+}
+
+// LogoutHandler simulates a user logout
+func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+    // Decrement active sessions gauge
+    activeSessions.Dec()
+
+    w.Write([]byte("Logout successful"))
 }
 
 func main() {
-    // Set up HTTP server with Prometheus middleware
-    http.Handle("/hello", PrometheusMiddleware(http.HandlerFunc(helloHandler)))
+    // Create router
+    mux := http.NewServeMux()
+
+    // Apply Prometheus middleware to all routes
+    mux.Handle("/", PrometheusMiddleware(http.HandlerFunc(HomeHandler)))
+    mux.Handle("/login", PrometheusMiddleware(http.HandlerFunc(LoginHandler)))
+    mux.Handle("/logout", PrometheusMiddleware(http.HandlerFunc(LogoutHandler)))
 
     // Expose Prometheus metrics endpoint
-    http.Handle("/metrics", promhttp.Handler())
+    mux.Handle("/metrics", promhttp.Handler())
 
     // Start server
-    http.ListenAndServe(":8080", nil)
+    log.Println("Starting server on :8080")
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 ```
 
-This example demonstrates:
+This example demonstrates several important Prometheus metric types:
 
-1. **Counters**: Track the total number of events (e.g., requests)
-2. **Gauges**: Measure current values (e.g., in-progress requests)
-3. **Histograms**: Track distribution of values (e.g., response times)
+1. **Counter**: A cumulative metric that only increases (e.g., total requests)
+2. **Gauge**: A metric that can go up and down (e.g., active sessions)
+3. **Histogram**: Samples observations and counts them in configurable buckets (e.g., request duration)
 
-Prometheus can scrape these metrics from your `/metrics` endpoint and store them for querying, alerting, and visualization.
+#### **Custom Metrics for Business Logic**
 
-#### **Custom Business Metrics**
-
-Beyond technical metrics, it's important to track business-relevant metrics:
+Beyond standard infrastructure metrics, you should also instrument your business logic:
 
 ```go
 package main
 
 import (
-    "net/http"
+    "log"
+    "math/rand"
+    "time"
 
     "github.com/prometheus/client_golang/prometheus"
     "github.com/prometheus/client_golang/prometheus/promauto"
-    "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-    // Counter for orders placed
-    ordersTotal = promauto.NewCounterVec(
+    // Business metrics
+    ordersProcessed = promauto.NewCounterVec(
         prometheus.CounterOpts{
-            Name: "orders_total",
-            Help: "Total number of orders placed",
+            Name: "orders_processed_total",
+            Help: "Total number of processed orders",
         },
         []string{"status", "payment_method"},
     )
 
-    // Gauge for current cart count
-    activeCartCount = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "active_cart_count",
-            Help: "Number of active shopping carts",
-        },
-    )
-
-    // Histogram for order values
-    orderValueDollars = promauto.NewHistogramVec(
+    orderValue = promauto.NewHistogramVec(
         prometheus.HistogramOpts{
             Name:    "order_value_dollars",
-            Help:    "Distribution of order values in dollars",
-            Buckets: []float64{10, 25, 50, 100, 250, 500, 1000},
+            Help:    "Value of orders in dollars",
+            Buckets: []float64{10, 50, 100, 500, 1000, 5000},
         },
         []string{"product_category"},
     )
-)
 
-// PlaceOrder simulates an order placement
-func PlaceOrder(orderValue float64, status, paymentMethod, category string) {
-    // Increment orders counter
-    ordersTotal.WithLabelValues(status, paymentMethod).Inc()
-
-    // Record order value in histogram
-    orderValueDollars.WithLabelValues(category).Observe(orderValue)
-
-    // Decrement active cart count
-    activeCartCount.Dec()
-}
-
-// CreateCart simulates creating a new shopping cart
-func CreateCart() {
-    activeCartCount.Inc()
-}
-
-func main() {
-    // Set up API routes (simplified)
-    http.HandleFunc("/api/cart/create", func(w http.ResponseWriter, r *http.Request) {
-        CreateCart()
-        w.WriteHeader(http.StatusCreated)
-    })
-
-    http.HandleFunc("/api/order/place", func(w http.ResponseWriter, r *http.Request) {
-        // In a real app, these would come from the request
-        PlaceOrder(123.45, "completed", "credit_card", "electronics")
-        w.WriteHeader(http.StatusCreated)
-    })
-
-    // Expose Prometheus metrics endpoint
-    http.Handle("/metrics", promhttp.Handler())
-
-    // Start server
-    http.ListenAndServe(":8080", nil)
-}
-```
-
-These business metrics can provide insights into user behavior and business performance, complementing technical metrics.
-
-#### **Automatic Runtime Metrics**
-
-The Prometheus client library can automatically collect Go runtime metrics:
-
-```go
-package main
-
-import (
-    "net/http"
-
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/collectors"
-    "github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-func main() {
-    // Create a new registry
-    reg := prometheus.NewRegistry()
-
-    // Add Go collectors
-    reg.MustRegister(
-        collectors.NewGoCollector(),        // Go runtime metrics
-        collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), // Process metrics
+    inventoryLevel = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "inventory_level",
+            Help: "Current inventory level by product",
+        },
+        []string{"product_id", "warehouse"},
     )
 
-    // Create a metrics handler using the registry
-    handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+    paymentProcessingTime = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name:    "payment_processing_seconds",
+            Help:    "Time spent processing payments",
+            Buckets: prometheus.LinearBuckets(0.1, 0.1, 10),
+        },
+        []string{"payment_provider"},
+    )
+)
 
-    // Expose metrics endpoint
-    http.Handle("/metrics", handler)
+// ProcessOrder simulates order processing with metrics
+func ProcessOrder(orderID string, amount float64, paymentMethod string, productCategory string) (string, error) {
+    // Record start time for payment processing
+    start := time.Now()
 
-    // Start server
-    http.ListenAndServe(":8080", nil)
+    // Simulate payment processing
+    time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
+
+    // Record payment processing time
+    paymentProcessingTime.WithLabelValues("stripe").Observe(time.Since(start).Seconds())
+
+    // Determine order status (simulate success/failure)
+    status := "completed"
+    if rand.Float64() < 0.1 {
+        status = "failed"
+    }
+
+    // Record order metrics
+    ordersProcessed.WithLabelValues(status, paymentMethod).Inc()
+
+    if status == "completed" {
+        // Record order value in appropriate bucket
+        orderValue.WithLabelValues(productCategory).Observe(amount)
+
+        // Update inventory (simulate inventory change)
+        productID := "prod-" + productCategory + "-" + orderID[:8]
+        inventoryChange := -1.0 * float64(rand.Intn(5)+1)
+        inventoryLevel.WithLabelValues(productID, "warehouse-1").Add(inventoryChange)
+    }
+
+    return status, nil
+}
+
+func main() {
+    // Initialize some inventory
+    inventoryLevel.WithLabelValues("prod-electronics-12345678", "warehouse-1").Set(100)
+    inventoryLevel.WithLabelValues("prod-clothing-87654321", "warehouse-1").Set(250)
+
+    // Simulate order processing
+    for i := 0; i < 100; i++ {
+        orderID := fmt.Sprintf("order-%d", i)
+        amount := 10.0 + rand.Float64()*990.0
+
+        paymentMethods := []string{"credit_card", "paypal", "bank_transfer"}
+        paymentMethod := paymentMethods[rand.Intn(len(paymentMethods))]
+
+        categories := []string{"electronics", "clothing", "books", "home"}
+        category := categories[rand.Intn(len(categories))]
+
+        status, _ := ProcessOrder(orderID, amount, paymentMethod, category)
+        log.Printf("Processed order %s: $%.2f via %s - %s", orderID, amount, paymentMethod, status)
+
+        time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
+    }
 }
 ```
 
-This provides important metrics about your Go application's runtime behavior, including garbage collection, goroutine count, and memory usage.
+#### **Prometheus Best Practices**
 
-#### **Best Practices for Metrics**
+When implementing Prometheus metrics in Go applications, follow these best practices:
 
-When implementing metrics in Go applications, follow these best practices:
+1. **Use Meaningful Names**: Follow the `namespace_subsystem_name` pattern (e.g., `http_requests_total`)
+2. **Add Helpful Descriptions**: Include clear descriptions for every metric
+3. **Choose Labels Carefully**: Labels create separate time series, so use them judiciously
+4. **Use Standard Metrics**: Follow conventions for common metrics like request counts and durations
+5. **Select Appropriate Buckets**: Customize histogram buckets based on expected value distributions
+6. **Avoid High Cardinality**: Limit the number of unique label value combinations
+7. **Instrument Critical Paths**: Focus on business-critical operations
+8. **Aggregate at Collection Time**: Use counter rates and histogram percentiles rather than raw counters
 
-1. **Use meaningful names**: Choose clear, descriptive metric names
-2. **Add appropriate labels**: Use labels to segment metrics, but avoid high cardinality
-3. **Choose the right metric type**: Use counters for events, gauges for current values, and histograms for distributions
-4. **Set appropriate buckets**: Configure histogram buckets based on expected value ranges
-5. **Measure what matters**: Focus on metrics that drive decisions or alerts
-6. **Document metrics**: Add helpful descriptions to each metric
-7. **Standardize across services**: Use consistent naming and labeling conventions
-8. **Watch for performance**: Excessive metrics can impact application performance
-
-With proper metrics in place, you've established the second pillar of observability. Next, let's explore distributed tracing.
-
-### **28.2.3 Distributed Tracing**
+### **28.2.3 Distributed Tracing with OpenTelemetry**
 
 Distributed tracing tracks requests as they flow through distributed systems, providing visibility into how services interact and where performance bottlenecks occur. This is particularly valuable in microservice architectures.
 

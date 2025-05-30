@@ -201,149 +201,341 @@ func (c *OpenAIClient) CreateChatCompletion(ctx context.Context, req CompletionR
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("sending request: %w", err)
+		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
-	}
-
+	// Handle non-200 responses
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, body)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var completionResp CompletionResponse
-	if err := json.Unmarshal(body, &completionResp); err != nil {
-		return nil, fmt.Errorf("unmarshaling response: %w", err)
+	// Parse the response
+	var result CompletionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
-	return &completionResp, nil
+	return &result, nil
 }
 
+// Main function demonstrating OpenAI API usage
 func main() {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		fmt.Println("Please set the OPENAI_API_KEY environment variable")
-		return
+		fmt.Println("OPENAI_API_KEY environment variable is required")
+		os.Exit(1)
 	}
 
 	client := NewOpenAIClient(apiKey)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
+	// Create a request
 	req := CompletionRequest{
 		Model: "gpt-4",
 		Messages: []Message{
 			{
 				Role:    "system",
-				Content: "You are a helpful assistant that provides concise responses.",
+				Content: "You are a helpful assistant specialized in Go programming.",
 			},
 			{
 				Role:    "user",
-				Content: "What are the key features of the Go programming language?",
+				Content: "What are the best practices for error handling in Go?",
 			},
 		},
 		Temperature: 0.7,
-		MaxTokens:   300,
+		MaxTokens:   500,
 	}
 
+	// Send the request
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
+	// Print the response
 	if len(resp.Choices) > 0 {
-		fmt.Printf("Response: %s\n", resp.Choices[0].Message.Content)
+		fmt.Println("Response:", resp.Choices[0].Message.Content)
 		fmt.Printf("Tokens used: %d\n", resp.Usage.TotalTokens)
+	} else {
+		fmt.Println("No response generated")
 	}
 }
 ```
 
-### Anthropic Claude API Integration
+### **33.2.1 Building a Production-Ready AI Client**
 
-Anthropic's Claude models are known for their longer context windows and strong instruction-following capabilities. Here's how to integrate the Claude API:
+For production applications, you'll want a more robust OpenAI client with features like:
+
+1. **Retry Handling**: Automatically retry on transient errors
+2. **Rate Limiting**: Respect API rate limits
+3. **Streaming Support**: Handle streaming responses
+4. **Logging**: Log requests and responses for debugging
+5. **Fallback Mechanisms**: Switch to alternate models or services when needed
+
+Here's a more complete implementation:
 
 ```go
-package main
+package openai
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"os"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
-// ClaudeClient provides methods to interact with the Anthropic Claude API
-type ClaudeClient struct {
+// Client provides methods to interact with the OpenAI API
+type Client struct {
 	apiKey     string
 	httpClient *http.Client
 	baseURL    string
+	logger     *log.Logger
+	retryMax   int
 }
 
-// MessageRequest represents a request to the Claude messages API
-type MessageRequest struct {
-	Model       string        `json:"model"`
-	Messages    []ClaudeMessage `json:"messages"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
-	Temperature float64       `json:"temperature,omitempty"`
-	System      string        `json:"system,omitempty"`
+// ClientOption is a function that modifies a Client
+type ClientOption func(*Client)
+
+// WithBaseURL sets a custom base URL for the API
+func WithBaseURL(url string) ClientOption {
+	return func(c *Client) {
+		c.baseURL = url
+	}
 }
 
-// ClaudeMessage represents a message in the Claude API
-type ClaudeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+// WithLogger sets a custom logger
+func WithLogger(logger *log.Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
 }
 
-// MessageResponse represents a response from the Claude API
-type MessageResponse struct {
-	ID        string `json:"id"`
-	Type      string `json:"type"`
-	Role      string `json:"role"`
-	Content   []ContentBlock `json:"content"`
-	Model     string `json:"model"`
-	StopReason string `json:"stop_reason"`
-	Usage     struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
-	} `json:"usage"`
+// WithHTTPClient sets a custom HTTP client
+func WithHTTPClient(client *http.Client) ClientOption {
+	return func(c *Client) {
+		c.httpClient = client
+	}
 }
 
-// ContentBlock represents a block of content in the Claude API response
-type ContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+// WithMaxRetries sets the maximum number of retries
+func WithMaxRetries(retries int) ClientOption {
+	return func(c *Client) {
+		c.retryMax = retries
+	}
 }
 
-// NewClaudeClient creates a new Claude client
-func NewClaudeClient(apiKey string) *ClaudeClient {
-	return &ClaudeClient{
+// NewClient creates a new OpenAI client with the given options
+func NewClient(apiKey string, opts ...ClientOption) *Client {
+	client := &Client{
 		apiKey: apiKey,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-		baseURL: "https://api.anthropic.com/v1",
+		baseURL:   "https://api.openai.com/v1",
+		logger:    log.New(io.Discard, "", 0),
+		retryMax:  3,
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
 }
 
-// CreateMessage sends a message request to the Claude API
-func (c *ClaudeClient) CreateMessage(ctx context.Context, req MessageRequest) (*MessageResponse, error) {
+// CompletionRequest represents a request to the OpenAI completions endpoint
+type CompletionRequest struct {
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Temperature float64   `json:"temperature,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Stream      bool      `json:"stream,omitempty"`
+}
+
+// Message represents a message in the chat completion API
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// CompletionResponse represents a response from the OpenAI completions endpoint
+type CompletionResponse struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	Choices []struct {
+		Index        int `json:"index"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+// APIError represents an error response from the API
+type APIError struct {
+	StatusCode int
+	Type       string `json:"type"`
+	Message    string `json:"message"`
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API error (status %d): %s - %s", e.StatusCode, e.Type, e.Message)
+}
+
+// CreateChatCompletion sends a completion request to the OpenAI API
+func (c *Client) CreateChatCompletion(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+	var result *CompletionResponse
+
+	operation := func() error {
+		resp, err := c.doRequest(ctx, "POST", "/chat/completions", req)
+		if err != nil {
+			// Only retry on certain errors
+			var apiErr *APIError
+			if errors.As(err, &apiErr) {
+				// Don't retry on client errors (except rate limits)
+				if apiErr.StatusCode >= 400 && apiErr.StatusCode < 500 && apiErr.StatusCode != 429 {
+					return backoff.Permanent(err)
+				}
+			}
+			return err
+		}
+		result = resp
+		return nil
+	}
+
+	// Create exponential backoff
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxElapsedTime = time.Duration(c.retryMax) * time.Second
+
+	err := backoff.Retry(operation, backoff.WithContext(expBackoff, ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// StreamChatCompletion streams a completion request to the OpenAI API
+func (c *Client) StreamChatCompletion(ctx context.Context, req CompletionRequest,
+	callback func(chunk *CompletionResponse) error) error {
+
+	// Ensure streaming is enabled
+	req.Stream = true
+
+	// Make the request
 	jsonData, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
+		return fmt.Errorf("marshaling request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/messages", c.baseURL),
+		fmt.Sprintf("%s/chat/completions", c.baseURL),
+		bytes.NewBuffer(jsonData),
+	)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	httpReq.Header.Set("Accept", "text/event-stream")
+
+	c.logger.Printf("Sending streaming request to %s", httpReq.URL.String())
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Handle non-200 responses
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Process the stream
+	reader := bufio.NewReader(resp.Body)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("reading stream: %w", err)
+		}
+
+		// Skip empty lines
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+
+		// Skip data prefix
+		const prefix = "data: "
+		if !bytes.HasPrefix(line, []byte(prefix)) {
+			continue
+		}
+		line = bytes.TrimPrefix(line, []byte(prefix))
+
+		// Check for stream end marker
+		if string(line) == "[DONE]" {
+			break
+		}
+
+		// Parse the response chunk
+		var chunk CompletionResponse
+		if err := json.Unmarshal(line, &chunk); err != nil {
+			return fmt.Errorf("parsing stream chunk: %w", err)
+		}
+
+		// Call the callback with the chunk
+		if err := callback(&chunk); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// doRequest executes an API request and returns the response
+func (c *Client) doRequest(ctx context.Context, method, path string, body interface{}) (*CompletionResponse, error) {
+	var jsonData []byte
+	var err error
+
+	if body != nil {
+		jsonData, err = json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling request: %w", err)
+		}
+	}
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		method,
+		fmt.Sprintf("%s%s", c.baseURL, path),
 		bytes.NewBuffer(jsonData),
 	)
 	if err != nil {
@@ -351,184 +543,365 @@ func (c *ClaudeClient) CreateMessage(ctx context.Context, req MessageRequest) (*
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", c.apiKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+
+	c.logger.Printf("Sending request to %s", httpReq.URL.String())
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("sending request: %w", err)
+		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	// Read the response body
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
+	// Handle non-200 responses
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, body)
+		var apiErr APIError
+		if err := json.Unmarshal(respBody, &apiErr); err != nil {
+			return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+		}
+		apiErr.StatusCode = resp.StatusCode
+		return nil, &apiErr
 	}
 
-	var messageResp MessageResponse
-	if err := json.Unmarshal(body, &messageResp); err != nil {
-		return nil, fmt.Errorf("unmarshaling response: %w", err)
+	// Parse the response
+	var result CompletionResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 
-	return &messageResp, nil
-}
-
-func main() {
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
-	if apiKey == "" {
-		fmt.Println("Please set the ANTHROPIC_API_KEY environment variable")
-		return
-	}
-
-	client := NewClaudeClient(apiKey)
-
-	ctx := context.Background()
-
-	req := MessageRequest{
-		Model: "claude-3-opus-20240229",
-		Messages: []ClaudeMessage{
-			{
-				Role:    "user",
-				Content: "What makes Go a good language for backend development?",
-			},
-		},
-		System: "You are a helpful programming assistant with expertise in Go.",
-		MaxTokens: 500,
-		Temperature: 0.7,
-	}
-
-	resp, err := client.CreateMessage(ctx, req)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
-
-	if len(resp.Content) > 0 && resp.Content[0].Type == "text" {
-		fmt.Printf("Response: %s\n", resp.Content[0].Text)
-		fmt.Printf("Tokens used: Input: %d, Output: %d\n",
-			resp.Usage.InputTokens, resp.Usage.OutputTokens)
-	}
+	return &result, nil
 }
 ```
 
-### Error Handling and Rate Limiting
+### **33.2.2 Building a Complete AI-powered Go Application**
 
-When working with AI APIs, it's important to handle errors and implement rate limiting to avoid exceeding API quotas. Here's a pattern for robust error handling and rate limiting:
+Let's create a complete example of a simple AI-powered REST API service that provides code explanations:
+
+````go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+)
+
+// CodeExplainerRequest represents a request for code explanation
+type CodeExplainerRequest struct {
+	Code        string `json:"code"`
+	Language    string `json:"language"`
+	ExplainType string `json:"explain_type"` // "simple", "detailed", "tutorial"
+}
+
+// CodeExplainerResponse represents a response with code explanation
+type CodeExplainerResponse struct {
+	Explanation string `json:"explanation"`
+	TokensUsed  int    `json:"tokens_used"`
+}
+
+// Application encapsulates the application dependencies
+type Application struct {
+	AIClient *openai.Client
+	Logger   *log.Logger
+}
+
+func main() {
+	// Initialize logger
+	logger := log.New(os.Stdout, "CODE-EXPLAINER: ", log.LstdFlags)
+
+	// Get API key from environment
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		logger.Fatal("OPENAI_API_KEY environment variable is required")
+	}
+
+	// Initialize OpenAI client
+	aiClient := openai.NewClient(
+		apiKey,
+		openai.WithLogger(logger),
+		openai.WithMaxRetries(3),
+	)
+
+	// Create application instance
+	app := &Application{
+		AIClient: aiClient,
+		Logger:   logger,
+	}
+
+	// Initialize router
+	r := chi.NewRouter()
+
+	// Middleware
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	// CORS configuration
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
+
+	// Routes
+	r.Get("/health", app.handleHealth)
+	r.Post("/api/explain", app.handleExplainCode)
+
+	// Create server
+	srv := &http.Server{
+		Addr:         ":8080",
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Start server in a goroutine
+	go func() {
+		app.Logger.Printf("Starting server on port 8080")
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			app.Logger.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	app.Logger.Println("Shutting down server...")
+
+	// Create context with timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		app.Logger.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	app.Logger.Println("Server gracefully stopped")
+}
+
+// handleHealth responds with the application's health status
+func (app *Application) handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "UP"})
+}
+
+// handleExplainCode handles code explanation requests
+func (app *Application) handleExplainCode(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	var req CodeExplainerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if req.Code == "" {
+		http.Error(w, "code is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Language == "" {
+		req.Language = "unknown"
+	}
+
+	if req.ExplainType == "" {
+		req.ExplainType = "simple"
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Create prompt based on explanation type
+	prompt := createExplanationPrompt(req.Code, req.Language, req.ExplainType)
+
+	// Create OpenAI request
+	aiReq := openai.CompletionRequest{
+		Model: "gpt-4",
+		Messages: []openai.Message{
+			{
+				Role:    "system",
+				Content: "You are an expert programming tutor who explains code clearly and concisely.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Temperature: 0.3,
+		MaxTokens:   1000,
+	}
+
+	// Get explanation from OpenAI
+	aiResp, err := app.AIClient.CreateChatCompletion(ctx, aiReq)
+	if err != nil {
+		app.Logger.Printf("OpenAI API error: %v", err)
+		http.Error(w, "Failed to generate explanation", http.StatusInternalServerError)
+		return
+	}
+
+	// Extract explanation
+	var explanation string
+	if len(aiResp.Choices) > 0 {
+		explanation = aiResp.Choices[0].Message.Content
+	} else {
+		explanation = "No explanation generated"
+	}
+
+	// Create response
+	resp := CodeExplainerResponse{
+		Explanation: explanation,
+		TokensUsed:  aiResp.Usage.TotalTokens,
+	}
+
+	// Return response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// createExplanationPrompt creates a prompt for the OpenAI API based on explanation type
+func createExplanationPrompt(code, language, explainType string) string {
+	var detailLevel string
+	switch explainType {
+	case "simple":
+		detailLevel = "Give a brief, simple explanation suitable for beginners."
+	case "detailed":
+		detailLevel = "Provide a detailed explanation including how the code works and best practices."
+	case "tutorial":
+		detailLevel = "Create a step-by-step tutorial explaining each part of the code thoroughly."
+	default:
+		detailLevel = "Give a brief, simple explanation suitable for beginners."
+	}
+
+	return fmt.Sprintf(`Please explain the following %s code:
+
+```%s
+%s
+````
+
+%s Focus only on explaining the code. Be clear and concise.`,
+language, language, code, detailLevel)
+}
+
+````
+
+To use this application, you would:
+
+1. Set the `OPENAI_API_KEY` environment variable
+2. Run the application: `go run main.go`
+3. Send a POST request to `/api/explain` with a JSON body:
+
+```json
+{
+  "code": "func fibonacci(n int) int {\n  if n <= 1 {\n    return n\n  }\n  return fibonacci(n-1) + fibonacci(n-2)\n}",
+  "language": "go",
+  "explain_type": "detailed"
+}
+````
+
+### **33.2.3 Implementing Local Fallbacks**
+
+For production applications, you might want to implement local fallbacks in case the AI service is unavailable or too costly for certain operations:
 
 ```go
 package main
 
 import (
-	"errors"
-	"sync"
-	"time"
+	"strings"
 )
 
-// Common error types for AI API integration
-var (
-	ErrRateLimited    = errors.New("rate limited")
-	ErrInvalidRequest = errors.New("invalid request")
-	ErrServerError    = errors.New("server error")
-	ErrAuthentication = errors.New("authentication error")
-)
-
-// RateLimiter provides rate limiting for API requests
-type RateLimiter struct {
-	mu            sync.Mutex
-	tokens        int
-	maxTokens     int
-	refillRate    time.Duration
-	lastRefillTime time.Time
+// FallbackExplainer provides simple explanations when AI services are unavailable
+type FallbackExplainer struct {
+	patterns map[string]string
 }
 
-// NewRateLimiter creates a new rate limiter with specified requests per minute
-func NewRateLimiter(requestsPerMinute int) *RateLimiter {
-	return &RateLimiter{
-		tokens:        requestsPerMinute,
-		maxTokens:     requestsPerMinute,
-		refillRate:    time.Minute / time.Duration(requestsPerMinute),
-		lastRefillTime: time.Now(),
+// NewFallbackExplainer creates a new fallback explainer
+func NewFallbackExplainer() *FallbackExplainer {
+	return &FallbackExplainer{
+		patterns: map[string]string{
+			"func":      "This code defines a function in Go.",
+			"if":        "This code contains a conditional statement that executes code based on a condition.",
+			"for":       "This code contains a loop that repeats a block of code.",
+			"return":    "This code returns a value from a function.",
+			"import":    "This code imports external packages.",
+			"struct":    "This code defines a data structure with fields.",
+			"interface": "This code defines an interface specifying a set of method signatures.",
+			"goroutine": "This code uses Go's concurrency mechanism to run functions concurrently.",
+			"channel":   "This code uses channels for communication between goroutines.",
+			"defer":     "This code uses defer to ensure a function call happens before the surrounding function returns.",
+			"error":     "This code handles or returns errors.",
+			"panic":     "This code triggers a runtime panic when something unexpected happens.",
+			"recover":   "This code attempts to recover from a panic.",
+		},
 	}
 }
 
-// Allow checks if a request is allowed and decrements the token count
-func (rl *RateLimiter) Allow() bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
+// ExplainCode provides a simple explanation based on pattern matching
+func (f *FallbackExplainer) ExplainCode(code, language string) string {
+	// Default explanation
+	explanation := "This is code written in " + language + "."
 
-	now := time.Now()
-
-	// Refill tokens based on time elapsed
-	elapsed := now.Sub(rl.lastRefillTime)
-	tokensToAdd := int(elapsed / rl.refillRate)
-	if tokensToAdd > 0 {
-		rl.tokens = min(rl.maxTokens, rl.tokens+tokensToAdd)
-		rl.lastRefillTime = now
-	}
-
-	// Check if we have tokens available
-	if rl.tokens > 0 {
-		rl.tokens--
-		return true
-	}
-
-	return false
-}
-
-// Wait waits until a token is available and then consumes it
-func (rl *RateLimiter) Wait() {
-	for {
-		if rl.Allow() {
-			return
-		}
-		time.Sleep(rl.refillRate / 10) // Sleep for a fraction of the refill rate
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-```
-
-This rate limiter can be integrated with any of the API clients shown above to manage request rates. Here's an example of how to use it with the OpenAI client:
-
-```go
-type RateLimitedOpenAIClient struct {
-	client      *OpenAIClient
-	rateLimiter *RateLimiter
-}
-
-func NewRateLimitedOpenAIClient(apiKey string, requestsPerMinute int) *RateLimitedOpenAIClient {
-	return &RateLimitedOpenAIClient{
-		client:      NewOpenAIClient(apiKey),
-		rateLimiter: NewRateLimiter(requestsPerMinute),
-	}
-}
-
-func (c *RateLimitedOpenAIClient) CreateChatCompletion(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
-	// Wait for rate limit token
-	if !c.rateLimiter.Allow() {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for rate limit: %w", ctx.Err())
-		default:
-			c.rateLimiter.Wait()
+	// Look for known patterns
+	for pattern, desc := range f.patterns {
+		if strings.Contains(code, pattern) {
+			explanation += " " + desc
 		}
 	}
 
-	// Call the underlying client
-	return c.client.CreateChatCompletion(ctx, req)
+	return explanation
+}
+
+// In the main application, use the fallback when AI fails:
+func (app *Application) handleExplainCode(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	// Get explanation from OpenAI
+	aiResp, err := app.AIClient.CreateChatCompletion(ctx, aiReq)
+	if err != nil {
+		app.Logger.Printf("OpenAI API error: %v", err)
+
+		// Use fallback if AI service fails
+		fallback := NewFallbackExplainer()
+		fallbackExplanation := fallback.ExplainCode(req.Code, req.Language)
+
+		resp := CodeExplainerResponse{
+			Explanation: "AI service unavailable. Basic explanation: " + fallbackExplanation,
+			TokensUsed:  0,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	// ... existing code ...
 }
 ```
-
-This approach ensures that your application respects API rate limits while still handling requests efficiently.
 
 ## **33.3 Building LLM-Powered Applications**
 
@@ -880,7 +1253,7 @@ func (c *StreamingClient) StreamCompletion(ctx context.Context, req StreamingReq
 	reader := bufio.NewReader(resp.Body)
 
 	for {
-		line, err := reader.ReadString('\n')
+		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -1820,16 +2193,17 @@ func (r *RAGSystem) Query(ctx context.Context, query string, numResults int) (st
 		MaxTokens:   1000,
 	}
 
-	resp, err := r.llmClient.CreateChatCompletion(ctx, req)
+	// Get explanation from OpenAI
+	aiResp, err := r.llmClient.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("generating LLM response: %w", err)
 	}
 
-	if len(resp.Choices) == 0 {
+	if len(aiResp.Choices) == 0 {
 		return "", fmt.Errorf("no response generated")
 	}
 
-	return resp.Choices[0].Message.Content, nil
+	return aiResp.Choices[0].Message.Content, nil
 }
 
 // Example usage

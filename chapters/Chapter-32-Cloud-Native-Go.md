@@ -213,11 +213,30 @@ spec:
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20
----
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: go-app-config
+                  key: db_host
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: go-app-secrets
+                  key: db_password
+```
+
+Complementing the deployment, you'll typically need a service to expose your application:
+
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: go-app
+  name: go-app-service
+  labels:
+    app: go-app
 spec:
   selector:
     app: go-app
@@ -227,99 +246,355 @@ spec:
   type: ClusterIP
 ```
 
-This deployment creates three replicas of your Go application, with resource limits, readiness and liveness probes, and a service to expose it.
+### **32.3.2 Configuring Health Checks for Go Applications**
 
-### **32.3.2 Building Health Checks in Go**
+Health checks are crucial for Kubernetes to manage your application properly. Implement a health endpoint in your Go application:
 
-Kubernetes uses health checks to determine if your application is running correctly. Implement these in your Go application:
-
-```go
+````go
 package main
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	_ "github.com/lib/pq"
 )
 
+// Application dependencies
+type Application struct {
+	DB     *sql.DB
+	Config *Config
+	Logger *log.Logger
+}
+
+// Health represents the structure of our health check response
+type Health struct {
+	Status    string `json:"status"`
+	Version   string `json:"version"`
+	DBStatus  string `json:"dbStatus"`
+	Timestamp string `json:"timestamp"`
+}
+
 func main() {
-	// Create a mux for API endpoints
+	// Initialize application dependencies
+	app := setupApplication()
+	defer app.DB.Close()
+
+	// Set up HTTP server
 	mux := http.NewServeMux()
 
-	// Main application routes
-	mux.HandleFunc("/", homeHandler)
+	// API routes
+	mux.HandleFunc("/api/v1/users", app.handleUsers)
 
-	// Health check endpoints
-	mux.HandleFunc("/health/live", livenessHandler)
-	mux.HandleFunc("/health/ready", readinessHandler)
+	// Health check endpoint
+	mux.HandleFunc("/health", app.handleHealth)
 
-	// Metrics endpoint
-	mux.Handle("/metrics", promhttp.Handler())
-
-	// Start server in a goroutine
-	server := &http.Server{
-		Addr:    ":8080",
-		Handler: mux,
+	// Create server with proper timeouts
+	srv := &http.Server{
+		Addr:         ":8080",
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
+	// Start server in a goroutine
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
+		app.Logger.Printf("Starting server on port 8080")
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			app.Logger.Fatalf("Server failed: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal
-	shutdownGracefully(server)
-}
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-func livenessHandler(w http.ResponseWriter, r *http.Request) {
-	// Liveness just checks if the app is running
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
+	app.Logger.Println("Shutting down server...")
 
-func readinessHandler(w http.ResponseWriter, r *http.Request) {
-	// Readiness checks if the app is ready to serve traffic
-	// Check dependencies like databases, caches, etc.
-	if isDatabaseConnected() && isRedisConnected() {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Ready"))
-	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("Not Ready"))
-	}
-}
-
-func shutdownGracefully(server *http.Server) {
-	// Wait for interrupt signal
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
-
-	// Create a deadline for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Create context with timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Attempt graceful shutdown
-	if err := server.Shutdown(ctx); err != nil {
-		panic(err)
+	if err := srv.Shutdown(ctx); err != nil {
+		app.Logger.Fatalf("Server forced to shutdown: %v", err)
 	}
+
+	app.Logger.Println("Server gracefully stopped")
+}
+
+// handleHealth responds with the application's health status
+func (app *Application) handleHealth(w http.ResponseWriter, r *http.Request) {
+	health := Health{
+		Status:    "UP",
+		Version:   "1.0.0",
+		DBStatus:  "UP",
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	// Check database connection
+	if err := app.DB.Ping(); err != nil {
+		app.Logger.Printf("Database health check failed: %v", err)
+		health.Status = "DEGRADED"
+		health.DBStatus = "DOWN"
+		w.WriteHeader(http.StatusServiceUnavailable)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(health)
+}
+
+// setupApplication initializes all application dependencies
+func setupApplication() *Application {
+	// Initialize logger
+	logger := log.New(os.Stdout, "GO-APP: ", log.LstdFlags|log.Lshortfile)
+
+	// Load configuration
+	config := loadConfig()
+
+	// Initialize database connection
+	db, err := sql.Open("postgres", config.DatabaseURL)
+	if err != nil {
+		logger.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Verify database connection
+	if err := db.Ping(); err != nil {
+		logger.Fatalf("Failed to ping database: %v", err)
+	}
+
+	return &Application{
+		DB:     db,
+		Config: config,
+		Logger: logger,
+	}
+}
+
+// Config holds application configuration
+type Config struct {
+	DatabaseURL string
+	LogLevel    string
+	// Add other configuration fields as needed
+}
+
+// loadConfig loads application configuration from environment variables
+func loadConfig() *Config {
+	return &Config{
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		LogLevel:    os.Getenv("LOG_LEVEL"),
+	}
+}
+
+// handleUsers is a placeholder for a user API endpoint
+func (app *Application) handleUsers(w http.ResponseWriter, r *http.Request) {
+	// Implementation omitted for brevity
+}
+
+### **32.3.3 Resource Management for Go Applications**
+
+Go applications are typically resource-efficient, but proper resource allocation is still crucial:
+
+```yaml
+resources:
+  limits:
+    cpu: "500m"      # 0.5 CPU cores maximum
+    memory: "128Mi"  # 128 MB memory maximum
+  requests:
+    cpu: "100m"      # 0.1 CPU cores requested
+    memory: "64Mi"   # 64 MB memory requested
+````
+
+Benchmark your application to determine appropriate values. Go applications often have:
+
+1. **Low memory footprint**: Start with modest memory allocations (64-128 MB)
+2. **Efficient CPU usage**: Request less CPU than you might for applications in other languages
+3. **Quick startup**: Short readiness probe initial delays (5-10 seconds)
+
+### **32.3.4 Configuration Management with Kubernetes**
+
+Manage your Go application's configuration using ConfigMaps and Secrets:
+
+```yaml
+# ConfigMap for non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-app-config
+data:
+  db_host: "postgres.default.svc.cluster.local"
+  db_port: "5432"
+  db_name: "myapp"
+  log_level: "info"
+  allowed_origins: "example.com,api.example.com"
+  config.yaml: |
+    server:
+      port: 8080
+      timeout: 30s
+    features:
+      audit_logging: true
+      rate_limiting: true
+    metrics:
+      enabled: true
+      path: /metrics
+
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: go-app-secrets
+type: Opaque
+data:
+  db_user: cG9zdGdyZXM=  # base64 encoded "postgres"
+  db_password: c2VjcmV0  # base64 encoded "secret"
+  api_key: dG9wLXNlY3JldC1rZXk=  # base64 encoded "top-secret-key"
+```
+
+In your Go application, read these values from environment variables:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Config represents the application configuration
+type Config struct {
+	Server struct {
+		Port    int           `yaml:"port"`
+		Timeout time.Duration `yaml:"timeout"`
+	} `yaml:"server"`
+	Database struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		Name     string `yaml:"name"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+	} `yaml:"database"`
+	Features struct {
+		AuditLogging bool `yaml:"audit_logging"`
+		RateLimiting bool `yaml:"rate_limiting"`
+	} `yaml:"features"`
+	Metrics struct {
+		Enabled bool   `yaml:"enabled"`
+		Path    string `yaml:"path"`
+	} `yaml:"metrics"`
+	AllowedOrigins []string `yaml:"allowed_origins"`
+	APIKey         string   `yaml:"api_key"`
+}
+
+// LoadConfig loads configuration from environment variables and files
+func LoadConfig() (*Config, error) {
+	var config Config
+
+	// Load config from file if present
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath != "" {
+		configFile, err := os.ReadFile(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+
+		if err := yaml.Unmarshal(configFile, &config); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+	}
+
+	// Override with environment variables
+	if port, err := strconv.Atoi(getEnvOrDefault("SERVER_PORT", "")); err == nil && port > 0 {
+		config.Server.Port = port
+	} else if config.Server.Port == 0 {
+		config.Server.Port = 8080 // Default port
+	}
+
+	if timeout, err := time.ParseDuration(getEnvOrDefault("SERVER_TIMEOUT", "")); err == nil {
+		config.Server.Timeout = timeout
+	} else if config.Server.Timeout == 0 {
+		config.Server.Timeout = 30 * time.Second // Default timeout
+	}
+
+	// Database configuration
+	config.Database.Host = getEnvOrDefault("DB_HOST", config.Database.Host)
+
+	if dbPort, err := strconv.Atoi(getEnvOrDefault("DB_PORT", "")); err == nil && dbPort > 0 {
+		config.Database.Port = dbPort
+	} else if config.Database.Port == 0 {
+		config.Database.Port = 5432 // Default PostgreSQL port
+	}
+
+	config.Database.Name = getEnvOrDefault("DB_NAME", config.Database.Name)
+	config.Database.User = getEnvOrDefault("DB_USER", config.Database.User)
+	config.Database.Password = getEnvOrDefault("DB_PASSWORD", config.Database.Password)
+
+	// Features
+	if auditLogging, err := strconv.ParseBool(getEnvOrDefault("FEATURE_AUDIT_LOGGING", "")); err == nil {
+		config.Features.AuditLogging = auditLogging
+	}
+
+	if rateLimiting, err := strconv.ParseBool(getEnvOrDefault("FEATURE_RATE_LIMITING", "")); err == nil {
+		config.Features.RateLimiting = rateLimiting
+	}
+
+	// Allowed origins
+	if origins := getEnvOrDefault("ALLOWED_ORIGINS", ""); origins != "" {
+		config.AllowedOrigins = strings.Split(origins, ",")
+	}
+
+	// API key (sensitive)
+	config.APIKey = getEnvOrDefault("API_KEY", config.APIKey)
+
+	return &config, nil
+}
+
+// getEnvOrDefault returns the environment variable value or the default if not set
+func getEnvOrDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
+func main() {
+	config, err := LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	log.Printf("Starting server on port %d", config.Server.Port)
+	log.Printf("Connected to database %s on %s:%d",
+		config.Database.Name, config.Database.Host, config.Database.Port)
+
+	// Start application with configuration
+	// ...
 }
 ```
 
-### **32.3.3 Resource Optimization for Go on Kubernetes**
+### **32.3.5 Horizontal Pod Autoscaling for Go Applications**
 
-Optimize resource usage for Go applications on Kubernetes:
-
-1. **Right-Size Resource Requests and Limits**: Use metrics to determine appropriate values.
-
-2. **Horizontal Pod Autoscaling**: Set up HPAs based on CPU or custom metrics.
-
-3. **Go Runtime Configuration**: Set appropriate GOMAXPROCS and memory limits.
+Set up horizontal pod autoscaling to automatically adjust your application's resources:
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -331,7 +606,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: go-app
-  minReplicas: 3
+  minReplicas: 2
   maxReplicas: 10
   metrics:
     - type: Resource
@@ -340,21 +615,207 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
 ```
 
-When deploying Go applications, set environment variables to optimize the runtime:
+For this to work effectively, your Go application should expose metrics. Use Prometheus metrics and the Prometheus Adapter in Kubernetes:
+
+```go
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	// Define Prometheus metrics
+	httpRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "endpoint", "status"},
+	)
+
+	httpRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "endpoint"},
+	)
+
+	// Add more metrics as needed
+)
+
+func init() {
+	// Register metrics with Prometheus
+	prometheus.MustRegister(httpRequestsTotal)
+	prometheus.MustRegister(httpRequestDuration)
+}
+
+func main() {
+	// Set up HTTP server
+	mux := http.NewServeMux()
+
+	// API routes with instrumentation
+	mux.Handle("/api/v1/users", instrumentHandler("/api/v1/users", handleUsers()))
+
+	// Expose Prometheus metrics
+	mux.Handle("/metrics", promhttp.Handler())
+
+	// Health check endpoint
+	mux.HandleFunc("/health", handleHealth)
+
+	// Start server
+	log.Println("Starting server on :8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// instrumentHandler wraps an HTTP handler with Prometheus instrumentation
+func instrumentHandler(path string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Create a custom response writer to capture status code
+		rw := newResponseWriter(w)
+
+		// Record request duration
+		timer := prometheus.NewTimer(httpRequestDuration.WithLabelValues(r.Method, path))
+		defer timer.ObserveDuration()
+
+		// Call the next handler
+		next.ServeHTTP(rw, r)
+
+		// Record request count
+		httpRequestsTotal.WithLabelValues(r.Method, path, http.StatusText(rw.statusCode)).Inc()
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newResponseWriter(w http.ResponseWriter) *responseWriter {
+	return &responseWriter{w, http.StatusOK}
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// Handler implementations
+func handleUsers() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Implementation omitted for brevity
+	})
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"UP"}`))
+}
+```
+
+### **32.3.6 Implementing Zero-Downtime Deployments**
+
+Configure your Kubernetes deployment for zero-downtime updates:
 
 ```yaml
-containers:
-  - name: go-app
-    image: your-registry/go-app:1.0.0
-    env:
-      - name: GOMAXPROCS
-        value: "2"
-      - name: GOGC
-        value: "100"
-      - name: GOMEMLIMIT
-        value: "96MiB"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-app
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  # ... rest of deployment spec ...
+```
+
+Ensure your Go application handles termination signals gracefully:
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
+
+func main() {
+	// Create server
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: setupRoutes(),
+	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Println("Starting server...")
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Received shutdown signal, waiting for connections to close...")
+
+	// Give existing connections time to complete
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server gracefully stopped")
+}
+
+func setupRoutes() http.Handler {
+	mux := http.NewServeMux()
+	// Configure routes
+	// ...
+	return mux
+}
 ```
 
 ## **32.4 Serverless Go**

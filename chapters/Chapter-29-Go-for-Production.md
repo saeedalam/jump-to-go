@@ -249,110 +249,132 @@ This reduces the build context size, speeds up builds, and prevents sensitive fi
 
 ### **29.2.5 Container Security Best Practices for Go Applications**
 
-Security should be a primary concern when containerizing applications. Here are key practices for securing Go containers:
+Security is paramount when deploying containers to production. Here are key security practices for containerizing Go applications:
 
 #### **Run as Non-Root User**
 
-Always run your application as a non-root user:
+Always run your Go application as a non-root user in the container:
 
 ```dockerfile
-# Create a non-root user
-RUN adduser -D -g '' appuser
+FROM golang:1.20 AS builder
+# ... build steps ...
 
-# Change ownership of the application
+FROM alpine:3.17
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# ... other setup ...
+
+# Set ownership
+COPY --from=builder --chown=appuser:appgroup /app/main /app/main
+
+# Switch to the non-root user
 USER appuser
 
 # Run the application
+CMD ["/app/main"]
+```
+
+#### **Use Read-Only File Systems**
+
+Make your container's file system read-only where possible:
+
+```dockerfile
+FROM alpine:3.17
+# ... other steps ...
+
+# Make the filesystem read-only when running
+VOLUME ["/tmp", "/var/run"]
 CMD ["./main"]
 ```
 
-Or when using distroless:
+When running the container:
 
-```dockerfile
-FROM gcr.io/distroless/static:nonroot
-USER nonroot:nonroot
+```bash
+docker run --read-only --tmpfs /tmp:rw,exec,size=1g my-go-app
 ```
 
-#### **Scan Images for Vulnerabilities**
+#### **Scan for Vulnerabilities**
 
-Integrate container scanning into your CI/CD pipeline using tools like:
+Integrate vulnerability scanning into your CI/CD pipeline using tools like Trivy, Clair, or Snyk:
 
-- Trivy
-- Clair
-- Snyk Container
-- Docker Scout
-
-Example GitHub Actions workflow for scanning:
-
-```yaml
-name: Security Scan
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Build image
-        run: docker build -t myapp:${{ github.sha }} .
-
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "myapp:${{ github.sha }}"
-          format: "table"
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+```bash
+# Example using Trivy in a CI pipeline
+trivy image --severity HIGH,CRITICAL my-go-app:latest
 ```
 
-#### **Keep Base Images Updated**
+#### **Minimize Included Packages**
 
-Regularly update your base images to include security patches:
-
-```dockerfile
-# Use specific version tags with frequent updates
-FROM golang:1.20.7-alpine3.18 AS builder
-```
-
-Consider using dependabot or renovate to automatically update base images.
-
-#### **Minimize Image Content**
-
-Remove unnecessary tools and content:
+Keep your runtime container as minimal as possible:
 
 ```dockerfile
-# Alpine example - install temporarily needed packages and remove them in the same layer
+FROM alpine:3.17
+# Only install what's absolutely necessary
 RUN apk --no-cache add ca-certificates tzdata && \
-    update-ca-certificates && \
     rm -rf /var/cache/apk/*
+# ... rest of Dockerfile
 ```
 
-#### **Use Read-Only Root Filesystem**
+#### **Use Content Trust and Image Signing**
 
-Configure containers to use a read-only root filesystem in your Kubernetes deployment:
+Enable Docker Content Trust to verify image authenticity:
 
-```yaml
-spec:
-  containers:
-    - name: myapp
-      image: myapp:latest
-      securityContext:
-        readOnlyRootFilesystem: true
-      volumeMounts:
-        - name: tmp
-          mountPath: /tmp
-  volumes:
-    - name: tmp
-      emptyDir: {}
+```bash
+# Enable content trust
+export DOCKER_CONTENT_TRUST=1
+
+# Pull, tag, and push with content trust enabled
+docker pull alpine:3.17
+docker tag alpine:3.17 myregistry/alpine:3.17
+docker push myregistry/alpine:3.17
 ```
+
+#### **Use Multi-Stage Builds to Reduce Attack Surface**
+
+Multi-stage builds not only reduce image size but also security exposure:
+
+```dockerfile
+# Build stage with all build dependencies
+FROM golang:1.20 AS builder
+# ... build steps with potential vulnerabilities ...
+
+# Runtime stage with minimal attack surface
+FROM gcr.io/distroless/static:nonroot
+COPY --from=builder /app/main /main
+# ... minimal runtime configuration ...
+```
+
+#### **Implement Proper Secret Management**
+
+Never hardcode secrets in your Dockerfile or include them in your image:
+
+```dockerfile
+# DON'T do this
+ENV API_KEY="secret-key-value"
+
+# Instead, use environment variables at runtime
+# docker run -e API_KEY=secret-key-value my-go-app
+```
+
+For Kubernetes deployments, use Secrets or external secret management solutions.
+
+#### **Apply the Principle of Least Privilege**
+
+Restrict container capabilities to only what's needed:
+
+```bash
+docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE my-go-app
+```
+
+#### **Regular Updates and Patching**
+
+Keep base images updated with security patches:
+
+```dockerfile
+# Use specific version for reproducibility, but update regularly
+FROM alpine:3.17.2
+```
+
+Implement a process to regularly rebuild and redeploy containers with updated base images.
 
 ### **29.2.6 Building and Testing Docker Images Locally**
 
@@ -648,3 +670,7 @@ This logging configuration:
 - Writes to stdout/stderr for container log collection
 
 By following these container patterns and optimization techniques, you'll create Docker images for your Go applications that are small, secure, and production-ready.
+
+## **29.3 Orchestrating Go Applications with Kubernetes**
+
+While containerization provides a consistent packaging format, orchestration systems like Kubernetes manage how those containers run in production. This section explores how to effectively deploy and manage Go applications in Kubernetes environments.

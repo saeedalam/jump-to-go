@@ -4,7 +4,7 @@
 
 ## **25.1. Introduction**
 
-After exploring the fundamentals, advanced concepts, and practical applications of Go, this final chapter is dedicated to applying everything you’ve learned. We will build a comprehensive project that ties together:
+After exploring the fundamentals, advanced concepts, and practical applications of Go, this final chapter is dedicated to applying everything you've learned. We will build a comprehensive project that ties together:
 
 - REST APIs
 - Database integration
@@ -238,7 +238,51 @@ func GenerateJWT(userID uint) string {
 
 ---
 
-# **Chapter 25: Bringing It All Together (Next Steps)**
+## **25.5. Task Model**
+
+### **1. Task Model**
+
+```go
+package models
+
+import (
+	"time"
+	"gorm.io/gorm"
+)
+
+type TaskStatus string
+
+const (
+	StatusPending   TaskStatus = "pending"
+	StatusCompleted TaskStatus = "completed"
+)
+
+type TaskPriority string
+
+const (
+	PriorityLow    TaskPriority = "low"
+	PriorityMedium TaskPriority = "medium"
+	PriorityHigh   TaskPriority = "high"
+)
+
+type Task struct {
+	gorm.Model
+	Title       string       `gorm:"not null" json:"title"`
+	Description string       `json:"description"`
+	Status      TaskStatus   `gorm:"default:pending" json:"status"`
+	Priority    TaskPriority `gorm:"default:medium" json:"priority"`
+	DueDate     *time.Time   `json:"due_date"`
+	UserID      uint         `json:"user_id"`
+	User        User         `json:"-"`
+	Tags        []Tag        `gorm:"many2many:task_tags;" json:"tags"`
+}
+
+type Tag struct {
+	gorm.Model
+	Name  string `gorm:"unique;not null" json:"name"`
+	Tasks []Task `gorm:"many2many:task_tags;" json:"-"`
+}
+```
 
 ---
 
@@ -269,26 +313,32 @@ type Task struct {
 
 ---
 
-### **2. Create a Task**
-
-Allow authenticated users to create tasks.
-
-**Code: handlers/tasks.go**
+### **2. Task Controller**
 
 ```go
+// handlers/tasks.go
 package handlers
 
 import (
 	"encoding/json"
 	"net/http"
-	"task-manager/database"
+	"strconv"
 	"task-manager/middlewares"
 	"task-manager/models"
+	"task-manager/services"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
-func CreateTask(w http.ResponseWriter, r *http.Request) {
-	userID := middlewares.GetUserIDFromContext(r.Context())
+var taskService = services.TaskService{}
 
+// CreateTask handles creating a new task
+func CreateTask(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context (set by auth middleware)
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Parse request body
 	var task models.Task
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
@@ -296,92 +346,344 @@ func CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task.UserID = userID
-	database.DB.Create(&task)
+	// Create task
+	createdTask, err := taskService.CreateTask(userID, task)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
+	// Return created task
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(createdTask)
+}
+
+// GetTask retrieves a specific task
+func GetTask(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Get task ID from URL
+	vars := mux.Vars(r)
+	taskID, err := strconv.ParseUint(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get task
+	task, err := taskService.GetTaskByID(uint(taskID), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Return task
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(task)
+}
+
+// GetAllTasks retrieves all tasks for a user
+func GetAllTasks(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Check for query parameters
+	status := r.URL.Query().Get("status")
+	dueDateStr := r.URL.Query().Get("due_before")
+
+	var tasks []models.Task
+	var err error
+
+	if status != "" {
+		// Filter by status
+		tasks, err = taskService.GetTasksByStatus(userID, models.TaskStatus(status))
+	} else if dueDateStr != "" {
+		// Filter by due date
+		dueDate, parseErr := time.Parse("2006-01-02", dueDateStr)
+		if parseErr != nil {
+			http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		tasks, err = taskService.GetTasksByDueDate(userID, dueDate)
+	} else {
+		// Get all tasks
+		tasks, err = taskService.GetUserTasks(userID)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return tasks
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
+}
+
+// UpdateTask updates an existing task
+func UpdateTask(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Get task ID from URL
+	vars := mux.Vars(r)
+	taskID, err := strconv.ParseUint(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse request body
+	var task models.Task
+	err = json.NewDecoder(r.Body).Decode(&task)
+	if err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// Update task
+	updatedTask, err := taskService.UpdateTask(uint(taskID), userID, task)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated task
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedTask)
+}
+
+// DeleteTask deletes a task
+func DeleteTask(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Get task ID from URL
+	vars := mux.Vars(r)
+	taskID, err := strconv.ParseUint(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	// Delete task
+	err = taskService.DeleteTask(uint(taskID), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// CompleteTask marks a task as completed
+func CompleteTask(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userID := r.Context().Value(middlewares.UserIDKey).(uint)
+
+	// Get task ID from URL
+	vars := mux.Vars(r)
+	taskID, err := strconv.ParseUint(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+
+	// Complete task
+	task, err := taskService.CompleteTask(uint(taskID), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated task
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(task)
 }
 ```
 
----
-
-### **3. List Tasks**
-
-Retrieve tasks for the authenticated user.
-
-**Code: handlers/tasks.go**
+### **3. Task Service**
 
 ```go
-func ListTasks(w http.ResponseWriter, r *http.Request) {
-	userID := middlewares.GetUserIDFromContext(r.Context())
+// services/task_service.go
+package services
 
+import (
+	"errors"
+	"task-manager/database"
+	"task-manager/models"
+	"time"
+)
+
+// TaskService handles business logic for tasks
+type TaskService struct{}
+
+// CreateTask creates a new task for a user
+func (s *TaskService) CreateTask(userID uint, task models.Task) (models.Task, error) {
+	task.UserID = userID
+
+	// Validate task
+	if task.Title == "" {
+		return models.Task{}, errors.New("task title is required")
+	}
+
+	// Set default values if not provided
+	if task.Status == "" {
+		task.Status = models.StatusPending
+	}
+
+	if task.Priority == "" {
+		task.Priority = models.PriorityMedium
+	}
+
+	// Save task to database
+	result := database.DB.Create(&task)
+	if result.Error != nil {
+		return models.Task{}, result.Error
+	}
+
+	// Load associated tags
+	database.DB.Model(&task).Association("Tags").Find(&task.Tags)
+
+	return task, nil
+}
+
+// GetTaskByID retrieves a task by its ID
+func (s *TaskService) GetTaskByID(taskID, userID uint) (models.Task, error) {
+	var task models.Task
+
+	result := database.DB.Preload("Tags").First(&task, taskID)
+	if result.Error != nil {
+		return models.Task{}, result.Error
+	}
+
+	// Ensure the task belongs to the user
+	if task.UserID != userID {
+		return models.Task{}, errors.New("unauthorized: task belongs to another user")
+	}
+
+	return task, nil
+}
+
+// GetUserTasks retrieves all tasks for a user
+func (s *TaskService) GetUserTasks(userID uint) ([]models.Task, error) {
 	var tasks []models.Task
-	database.DB.Where("user_id = ?", userID).Find(&tasks)
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(tasks)
+	result := database.DB.Preload("Tags").Where("user_id = ?", userID).Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return tasks, nil
 }
-```
 
----
-
-### **4. Update a Task**
-
-Update task details such as title, description, or status.
-
-**Code: handlers/tasks.go**
-
-```go
-func UpdateTask(w http.ResponseWriter, r *http.Request) {
-	userID := middlewares.GetUserIDFromContext(r.Context())
-
-	var task models.Task
-	err := json.NewDecoder(r.Body).Decode(&task)
-	if err != nil || task.ID == 0 {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
+// UpdateTask updates an existing task
+func (s *TaskService) UpdateTask(taskID, userID uint, updatedTask models.Task) (models.Task, error) {
+	// Get existing task
+	task, err := s.GetTaskByID(taskID, userID)
+	if err != nil {
+		return models.Task{}, err
 	}
 
-	var existingTask models.Task
-	database.DB.Where("id = ? AND user_id = ?", task.ID, userID).First(&existingTask)
-	if existingTask.ID == 0 {
-		http.Error(w, "Task not found", http.StatusNotFound)
-		return
+	// Update fields
+	if updatedTask.Title != "" {
+		task.Title = updatedTask.Title
 	}
 
-	database.DB.Model(&existingTask).Updates(task)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(existingTask)
+	task.Description = updatedTask.Description
+
+	if updatedTask.Status != "" {
+		task.Status = updatedTask.Status
+	}
+
+	if updatedTask.Priority != "" {
+		task.Priority = updatedTask.Priority
+	}
+
+	if updatedTask.DueDate != nil {
+		task.DueDate = updatedTask.DueDate
+	}
+
+	// Update in database
+	result := database.DB.Save(&task)
+	if result.Error != nil {
+		return models.Task{}, result.Error
+	}
+
+	// Handle tags separately if needed
+	if len(updatedTask.Tags) > 0 {
+		// Clear existing tags and add new ones
+		database.DB.Model(&task).Association("Tags").Clear()
+		for _, tag := range updatedTask.Tags {
+			// Find or create the tag
+			var existingTag models.Tag
+			database.DB.Where("name = ?", tag.Name).FirstOrCreate(&existingTag, models.Tag{Name: tag.Name})
+			database.DB.Model(&task).Association("Tags").Append(&existingTag)
+		}
+		// Reload tags
+		database.DB.Model(&task).Association("Tags").Find(&task.Tags)
+	}
+
+	return task, nil
 }
-```
 
----
-
-### **5. Delete a Task**
-
-Allow users to delete their tasks.
-
-**Code: handlers/tasks.go**
-
-```go
-func DeleteTask(w http.ResponseWriter, r *http.Request) {
-	userID := middlewares.GetUserIDFromContext(r.Context())
-
-	var task models.Task
-	err := json.NewDecoder(r.Body).Decode(&task)
-	if err != nil || task.ID == 0 {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
+// DeleteTask deletes a task
+func (s *TaskService) DeleteTask(taskID, userID uint) error {
+	// Get existing task
+	task, err := s.GetTaskByID(taskID, userID)
+	if err != nil {
+		return err
 	}
 
-	result := database.DB.Where("id = ? AND user_id = ?", task.ID, userID).Delete(&task)
-	if result.RowsAffected == 0 {
-		http.Error(w, "Task not found", http.StatusNotFound)
-		return
+	// Delete from database
+	result := database.DB.Delete(&task)
+	return result.Error
+}
+
+// CompleteTask marks a task as completed
+func (s *TaskService) CompleteTask(taskID, userID uint) (models.Task, error) {
+	// Get existing task
+	task, err := s.GetTaskByID(taskID, userID)
+	if err != nil {
+		return models.Task{}, err
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	task.Status = models.StatusCompleted
+
+	// Update in database
+	result := database.DB.Save(&task)
+	if result.Error != nil {
+		return models.Task{}, result.Error
+	}
+
+	return task, nil
+}
+
+// GetTasksByStatus retrieves tasks filtered by status
+func (s *TaskService) GetTasksByStatus(userID uint, status models.TaskStatus) ([]models.Task, error) {
+	var tasks []models.Task
+
+	result := database.DB.Preload("Tags").Where("user_id = ? AND status = ?", userID, status).Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return tasks, nil
+}
+
+// GetTasksByDueDate retrieves tasks due before a certain date
+func (s *TaskService) GetTasksByDueDate(userID uint, date time.Time) ([]models.Task, error) {
+	var tasks []models.Task
+
+	result := database.DB.Preload("Tags").Where("user_id = ? AND due_date <= ?", userID, date).Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return tasks, nil
 }
 ```
 
@@ -556,7 +858,7 @@ Implement notifications to remind users about upcoming or overdue tasks.
 
 #### **Asynchronous Task Processing**
 
-Use Go’s concurrency features to send notifications asynchronously.
+Use Go's concurrency features to send notifications asynchronously.
 
 **Code: services/notification_service.go**
 
@@ -768,7 +1070,7 @@ Use benchmarking to test the system under load.
 
 ## **25.14. Conclusion**
 
-Congratulations! You’ve built a full-featured, scalable Task Management System that incorporates:
+Congratulations! You've built a full-featured, scalable Task Management System that incorporates:
 
 - REST APIs
 - Database integration

@@ -214,7 +214,11 @@ func searchUsers(w http.ResponseWriter, r *http.Request) {
 
 ### **30.2.3 Preventing Cross-Site Scripting (XSS)**
 
-Go's html/template package automatically escapes content to prevent XSS attacks:
+Cross-Site Scripting (XSS) vulnerabilities are particularly dangerous for web applications. Go provides several tools and approaches to prevent XSS attacks:
+
+#### **Using HTML Templates with Automatic Escaping**
+
+Go's `html/template` package automatically escapes data when rendering templates, making it an excellent first line of defense against XSS:
 
 ```go
 package main
@@ -224,57 +228,540 @@ import (
 	"net/http"
 )
 
-func renderPage(w http.ResponseWriter, r *http.Request) {
-	// User input that might contain malicious script
-	userInput := r.URL.Query().Get("message")
+func handler(w http.ResponseWriter, r *http.Request) {
+	// User-supplied input (potentially malicious)
+	userInput := r.URL.Query().Get("name")
 
-	// Go automatically escapes the content when using html/template
+	// Create a template with user data
 	tmpl := template.Must(template.New("page").Parse(`
-		<html><body>
-			<h1>Message</h1>
-			<p>{{.}}</p>
-		</body></html>
+		<!DOCTYPE html>
+		<html>
+		<head><title>Hello</title></head>
+		<body>
+			<h1>Hello, {{.}}</h1>
+		</body>
+		</html>
 	`))
 
-	// The template engine will escape the userInput
+	// Data is automatically escaped when executed
 	tmpl.Execute(w, userInput)
+}
+
+func main() {
+	http.HandleFunc("/", handler)
+	http.ListenAndServe(":8080", nil)
 }
 ```
 
-When you need to include trusted HTML content, use template.HTML type explicitly:
+If a user provides input like `<script>alert('XSS')</script>`, the template will render it as text rather than executable code.
+
+#### **Context-Specific Encoding**
+
+Different parts of an HTML document require different encoding strategies. The `html/template` package handles this automatically in most cases, but understanding context-specific encoding is important:
 
 ```go
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 )
 
 type PageData struct {
-	Title      string
-	RawContent template.HTML
+	Title        string
+	UserComment  string
+	UserName     string
+	ScriptParams map[string]string
 }
 
-func renderArticle(w http.ResponseWriter, r *http.Request) {
-	// IMPORTANT: Only use template.HTML for content you control or have sanitized
-	trustedHTML := template.HTML("<strong>This is bold text</strong>")
-
-	data := PageData{
-		Title:      "Article Title",
-		RawContent: trustedHTML,
+func handler(w http.ResponseWriter, r *http.Request) {
+	// Potentially untrusted data
+	userData := PageData{
+		Title:       r.URL.Query().Get("title"),
+		UserComment: r.URL.Query().Get("comment"),
+		UserName:    r.URL.Query().Get("username"),
+		ScriptParams: map[string]string{
+			"userId": r.URL.Query().Get("id"),
+		},
 	}
 
-	tmpl := template.Must(template.New("article").Parse(`
-		<html><body>
-			<h1>{{.Title}}</h1>
-			<div>{{.RawContent}}</div>
-		</body></html>
+	// Template with multiple contexts
+	tmpl := template.Must(template.New("page").Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>{{.Title}}</title>
+		</head>
+		<body>
+			<!-- HTML context -->
+			<div class="comment">{{.UserComment}}</div>
+
+			<!-- Attribute context -->
+			<div data-author="{{.UserName}}">Author Information</div>
+
+			<!-- JavaScript context -->
+			<script>
+				// JS string context
+				const userName = "{{.UserName}}";
+
+				// JS object context - special handling needed
+				const params = {{.ScriptParams}};
+			</script>
+		</body>
+		</html>
+	`))
+
+	// This will fail because .ScriptParams can't be safely embedded in a JS context
+	err := tmpl.Execute(w, userData)
+	if err != nil {
+		fmt.Fprintf(w, "Error: %v", err)
+	}
+}
+```
+
+To handle the JavaScript context properly, we need a custom approach:
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"html/template"
+	"net/http"
+)
+
+type PageData struct {
+	Title        string
+	UserComment  string
+	UserName     string
+	ScriptParams map[string]string
+}
+
+// Custom template function to safely convert data to JSON for JavaScript contexts
+func safeJS(v interface{}) (template.JS, error) {
+	jsonData, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return template.JS(jsonData), nil
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	// Potentially untrusted data
+	userData := PageData{
+		Title:       r.URL.Query().Get("title"),
+		UserComment: r.URL.Query().Get("comment"),
+		UserName:    r.URL.Query().Get("username"),
+		ScriptParams: map[string]string{
+			"userId": r.URL.Query().Get("id"),
+		},
+	}
+
+	// Create template with custom function
+	tmpl := template.New("page").Funcs(template.FuncMap{
+		"safeJS": safeJS,
+	})
+
+	// Parse template with proper context handling
+	tmpl = template.Must(tmpl.Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>{{.Title}}</title>
+		</head>
+		<body>
+			<!-- HTML context -->
+			<div class="comment">{{.UserComment}}</div>
+
+			<!-- Attribute context -->
+			<div data-author="{{.UserName}}">Author Information</div>
+
+			<!-- JavaScript context -->
+			<script>
+				// JS string context
+				const userName = "{{.UserName}}";
+
+				// JS object context - safely converted to JSON
+				const params = {{safeJS .ScriptParams}};
+			</script>
+		</body>
+		</html>
+	`))
+
+	tmpl.Execute(w, userData)
+}
+
+func main() {
+	http.HandleFunc("/", handler)
+	http.ListenAndServe(":8080", nil)
+}
+```
+
+#### **Content Security Policy (CSP)**
+
+Content Security Policy provides an additional layer of defense by restricting what resources can be loaded and executed. Implement CSP in your Go application:
+
+```go
+package main
+
+import (
+	"html/template"
+	"net/http"
+)
+
+// Middleware to add CSP headers
+func cspMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set Content Security Policy
+		w.Header().Set("Content-Security-Policy", `
+			default-src 'self';
+			script-src 'self' https://trusted-cdn.example.com;
+			style-src 'self' https://trusted-cdn.example.com;
+			img-src 'self' https://trusted-cdn.example.com data:;
+			connect-src 'self' https://api.example.com;
+			font-src 'self' https://trusted-cdn.example.com;
+			object-src 'none';
+			media-src 'self' https://trusted-cdn.example.com;
+			frame-src 'self';
+			frame-ancestors 'self';
+			form-action 'self';
+			base-uri 'self';
+			report-uri /csp-violation-report;
+		`)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Handler for CSP violation reports
+func cspViolationHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the violation report
+	var report struct {
+		DocumentURI  string `json:"document-uri"`
+		Referrer     string `json:"referrer"`
+		BlockedURI   string `json:"blocked-uri"`
+		ViolatedDirective string `json:"violated-directive"`
+		OriginalPolicy string `json:"original-policy"`
+	}
+
+	// In a real application, you would decode the JSON report and log it
+	// json.NewDecoder(r.Body).Decode(&report)
+
+	// Acknowledge receipt
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func main() {
+	// Create a new ServeMux
+	mux := http.NewServeMux()
+
+	// Register handlers
+	mux.HandleFunc("/", homeHandler)
+	mux.HandleFunc("/csp-violation-report", cspViolationHandler)
+
+	// Wrap ServeMux with CSP middleware
+	handler := cspMiddleware(mux)
+
+	// Start server with middleware
+	http.ListenAndServe(":8080", handler)
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	tmpl := template.Must(template.New("home").Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>CSP Protected Page</title>
+		</head>
+		<body>
+			<h1>Content Security Policy Example</h1>
+			<p>This page is protected by CSP.</p>
+
+			<!-- This script will load because it's from a trusted domain -->
+			<script src="https://trusted-cdn.example.com/script.js"></script>
+
+			<!-- This script will be blocked by CSP -->
+			<script src="https://untrusted-domain.com/script.js"></script>
+
+			<!-- Inline script will be blocked by default CSP -->
+			<script>
+				alert("This will be blocked");
+			</script>
+		</body>
+		</html>
+	`))
+
+	tmpl.Execute(w, nil)
+}
+```
+
+#### **Advanced CSP Configuration with Nonces**
+
+For cases where you need to allow specific inline scripts, you can use nonces:
+
+```go
+package main
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"html/template"
+	"net/http"
+)
+
+// generateNonce creates a random nonce for CSP
+func generateNonce() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+// Middleware to add CSP headers with nonce
+func cspMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Generate a unique nonce for this request
+		nonce := generateNonce()
+
+		// Store the nonce in context for use in templates
+		ctx := context.WithValue(r.Context(), "cspNonce", nonce)
+		r = r.WithContext(ctx)
+
+		// Set Content Security Policy with nonce
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(`
+			default-src 'self';
+			script-src 'self' 'nonce-%s' https://trusted-cdn.example.com;
+			style-src 'self' 'nonce-%s' https://trusted-cdn.example.com;
+			img-src 'self' https://trusted-cdn.example.com data:;
+			connect-src 'self' https://api.example.com;
+			font-src 'self' https://trusted-cdn.example.com;
+			object-src 'none';
+			media-src 'self' https://trusted-cdn.example.com;
+			frame-src 'self';
+			frame-ancestors 'self';
+			form-action 'self';
+			base-uri 'self';
+			report-uri /csp-violation-report;
+		`, nonce, nonce))
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the nonce from context
+	nonce := r.Context().Value("cspNonce").(string)
+
+	// Template data with nonce
+	data := struct {
+		Nonce string
+	}{
+		Nonce: nonce,
+	}
+
+	tmpl := template.Must(template.New("home").Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>CSP Protected Page with Nonce</title>
+			<!-- Inline style with nonce -->
+			<style nonce="{{.Nonce}}">
+				body { font-family: Arial, sans-serif; }
+			</style>
+		</head>
+		<body>
+			<h1>Content Security Policy Example with Nonce</h1>
+			<p>This page is protected by CSP, but allows specific inline scripts with nonces.</p>
+
+			<!-- Inline script with nonce will be allowed -->
+			<script nonce="{{.Nonce}}">
+				console.log("This inline script is allowed because it has a valid nonce");
+			</script>
+
+			<!-- Inline script without nonce will be blocked -->
+			<script>
+				console.log("This will be blocked");
+			</script>
+		</body>
+		</html>
 	`))
 
 	tmpl.Execute(w, data)
 }
+
+func main() {
+	// Create a new ServeMux
+	mux := http.NewServeMux()
+
+	// Register handlers
+	mux.HandleFunc("/", homeHandler)
+	mux.HandleFunc("/csp-violation-report", cspViolationHandler)
+
+	// Wrap ServeMux with CSP middleware
+	handler := cspMiddleware(mux)
+
+	// Start server with middleware
+	http.ListenAndServe(":8080", handler)
+}
 ```
+
+#### **XSS Protection for Single Page Applications (SPAs) and APIs**
+
+For SPAs and APIs, focus on proper JSON handling and CORS configuration:
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+)
+
+// UserData represents user information
+type UserData struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Bio      string `json:"bio"`
+}
+
+// API handler for user data
+func userAPIHandler(w http.ResponseWriter, r *http.Request) {
+	// Set appropriate headers
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	// CORS headers (restrict to trusted origins)
+	w.Header().Set("Access-Control-Allow-Origin", "https://trusted-spa.example.com")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+	// Handle preflight requests
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Get user data (simulated)
+	userData := UserData{
+		ID:       123,
+		Username: "johndoe",
+		Email:    "john@example.com",
+		Bio:      "<script>alert('XSS')</script> Web developer", // Potentially malicious content
+	}
+
+	// JSON encoding handles escaping automatically
+	json.NewEncoder(w).Encode(userData)
+}
+
+func main() {
+	http.HandleFunc("/api/user", userAPIHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+When this API is consumed by a frontend application, it's crucial that the frontend sanitizes or safely renders the content, especially fields like `Bio` that may contain user-generated content.
+
+#### **XSS Defense in Depth**
+
+For a comprehensive XSS defense strategy, combine multiple approaches:
+
+1. **Server-side template sanitization**: Using Go's `html/template` package
+2. **Content Security Policy**: Restricting resource loading
+3. **X-XSS-Protection header**: Enabling browser's built-in XSS protection
+4. **HTTP-only cookies**: Preventing cookie theft via XSS
+5. **Input validation**: Rejecting malicious input before processing
+6. **Output encoding**: Context-specific encoding for different parts of the document
+7. **DOM sanitization libraries**: In frontend code, use libraries like DOMPurify
+
+```go
+package main
+
+import (
+	"html/template"
+	"net/http"
+)
+
+// Comprehensive security middleware
+func securityMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content Security Policy
+		w.Header().Set("Content-Security-Policy", `
+			default-src 'self';
+			script-src 'self' https://trusted-cdn.example.com;
+			style-src 'self' https://trusted-cdn.example.com;
+			img-src 'self' https://trusted-cdn.example.com data:;
+			connect-src 'self' https://api.example.com;
+			font-src 'self' https://trusted-cdn.example.com;
+			object-src 'none';
+			frame-ancestors 'self';
+			form-action 'self';
+			base-uri 'self';
+		`)
+
+		// Browser XSS Protection
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// Strict Transport Security
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
+		// Referrer Policy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions Policy (formerly Feature Policy)
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func main() {
+	// Create a new ServeMux
+	mux := http.NewServeMux()
+
+	// Register handlers
+	mux.HandleFunc("/", homeHandler)
+
+	// Apply security middleware
+	handler := securityMiddleware(mux)
+
+	// Start server with middleware
+	http.ListenAndServe(":8080", handler)
+}
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	// Sanitize input
+	userInput := template.HTMLEscapeString(r.URL.Query().Get("input"))
+
+	// Use template for output
+	tmpl := template.Must(template.New("home").Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>Secure Page</title>
+		</head>
+		<body>
+			<h1>XSS Defense in Depth</h1>
+			<p>User input: {{.}}</p>
+		</body>
+		</html>
+	`))
+
+	tmpl.Execute(w, userInput)
+}
+```
+
+By implementing these techniques, you can significantly reduce the risk of XSS vulnerabilities in your Go web applications. Remember that XSS protection is not a single solution but rather a combination of defensive measures applied at different layers of your application.
 
 ### **30.2.4 Secure File Operations**
 
