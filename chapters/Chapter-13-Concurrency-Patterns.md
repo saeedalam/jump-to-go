@@ -1,41 +1,16 @@
-# **Chapter 13: Concurrency Patterns**
+# **Chapter 13: Concurrency Patterns in Go**
 
----
+In Chapter 11, we explored goroutines as the foundation of Go's concurrency model, and in Chapter 12, we delved deeper into channels for communication between goroutines. Now, we'll build upon this foundation to explore common concurrency patterns in Go.
 
-## **13.1. Introduction to Concurrency Patterns**
+Concurrency patterns are reusable solutions to common problems encountered when writing concurrent programs. These patterns help you structure your code to efficiently handle parallelism, manage resources, and avoid common pitfalls like deadlocks, race conditions, and excessive resource consumption.
 
-### Why Use Concurrency Patterns?
+In this chapter, we'll explore several essential concurrency patterns, including worker pools, fan-out/fan-in, pipelines, and others that will help you write robust concurrent applications in Go.
 
-Concurrency patterns help in organizing and structuring concurrent code to make it efficient, maintainable, and scalable. Using proper patterns, you can leverage the full potential of concurrency and parallelism without introducing complexity or bugs.
+## **13.1 Worker Pools**
 
-- **Efficiency**: Leverage multi-core CPUs to handle tasks in parallel.
-- **Scalability**: Distribute workloads across goroutines for better resource utilization.
-- **Maintainability**: Use patterns to simplify complex concurrency logic.
+A worker pool is a pattern where a fixed number of worker goroutines process tasks from a shared queue. This pattern is useful for limiting resource usage and processing multiple tasks concurrently.
 
-By employing concurrency patterns, you can avoid pitfalls like race conditions, and ensure that your code is both safe and optimized for real-world tasks.
-
----
-
-## **13.2. Worker Pools**
-
-A **Worker Pool** is a concurrency pattern that processes tasks using a fixed number of worker goroutines. It helps manage resource consumption by limiting the number of goroutines running simultaneously, preventing unnecessary strain on the system.
-
-### How Worker Pools Work:
-
-- A **worker** is a goroutine that performs a specific task (such as processing data).
-- The **job queue** stores tasks that need to be processed.
-- Workers **fetch jobs** from the job queue and process them in parallel, while putting results into a result channel.
-- This pattern improves system efficiency and allows for easy scaling by adjusting the number of workers.
-
----
-
-### **13.2.1 Worker Pool by Example**
-
-#### Problem Statement:
-
-Process a list of numbers and compute their squares using multiple workers.
-
-#### **Code Implementation:**
+### **13.1.1 Basic Worker Pool Implementation**
 
 ```go
 package main
@@ -45,19 +20,20 @@ import (
 	"time"
 )
 
+// Worker processes jobs from the jobs channel and sends results to the results channel
 func worker(id int, jobs <-chan int, results chan<- int) {
 	for job := range jobs {
-		fmt.Printf("Worker %d processing job %d
-", id, job)
+		fmt.Printf("Worker %d processing job %d\n", id, job)
 		time.Sleep(time.Second) // Simulate processing time
-		results <- job * job
+		results <- job * 2      // Send result
 	}
 }
 
 func main() {
-	const numJobs = 5
+	const numJobs = 10
 	const numWorkers = 3
 
+	// Create job and result channels
 	jobs := make(chan int, numJobs)
 	results := make(chan int, numJobs)
 
@@ -70,291 +46,591 @@ func main() {
 	for j := 1; j <= numJobs; j++ {
 		jobs <- j
 	}
-	close(jobs)
+	close(jobs) // No more jobs will be sent
 
 	// Collect results
 	for a := 1; a <= numJobs; a++ {
-		fmt.Printf("Result: %d
-", <-results)
+		result := <-results
+		fmt.Println("Result:", result)
 	}
 }
 ```
 
-#### **Explanation:**
+In this example:
 
-- **Worker function**: It simulates processing each job by sleeping for one second and then computing the square of the job number.
-- **Main function**: It starts 3 worker goroutines and sends 5 jobs for processing. After the jobs are processed, results are collected.
+1. We create a fixed number of worker goroutines
+2. Each worker processes jobs from the shared `jobs` channel
+3. Workers send results to the `results` channel
+4. The main goroutine collects all results
 
-#### **Expected Output:**
+### **13.1.2 Worker Pool with Error Handling**
 
-```
-Worker 1 processing job 1
-Worker 2 processing job 2
-Worker 3 processing job 3
-Worker 1 processing job 4
-Worker 2 processing job 5
-Result: 1
-Result: 4
-Result: 9
-Result: 16
-Result: 25
-```
-
----
-
-### **13.2.2 Extending Worker Pool with Error Handling**
-
-Let’s extend the Worker Pool by adding error handling. What if some jobs fail?
-
-#### **Code Implementation:**
+Real-world tasks can fail, so adding error handling is essential:
 
 ```go
 package main
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"time"
 )
 
-func workerWithErrors(id int, jobs <-chan int, results chan<- int, errors chan<- error) {
+// Job represents a task to be processed
+type Job struct {
+	ID      int
+	Data    int
+}
+
+// Result includes both the result data and possible error
+type Result struct {
+	Job     Job
+	Value   int
+	Err     error
+}
+
+// Worker processes jobs and handles potential errors
+func worker(id int, jobs <-chan Job, results chan<- Result) {
 	for job := range jobs {
-		fmt.Printf("Worker %d processing job %d
-", id, job)
-		time.Sleep(time.Second) // Simulate processing time
-		if rand.Float32() < 0.3 { // Randomly simulate errors
-			errors <- fmt.Errorf("worker %d failed on job %d", id, job)
-		} else {
-			results <- job * job
+		fmt.Printf("Worker %d processing job %d\n", id, job.ID)
+
+		// Simulate work with possible errors
+		time.Sleep(time.Second)
+
+		// Randomly simulate errors (30% chance)
+		if rand.Float32() < 0.3 {
+			results <- Result{
+				Job: job,
+				Err: fmt.Errorf("error processing job %d", job.ID),
+			}
+			continue
+		}
+
+		// Success case
+		results <- Result{
+			Job:   job,
+			Value: job.Data * 2,
+			Err:   nil,
 		}
 	}
 }
 
 func main() {
-	const numJobs = 5
+	rand.Seed(time.Now().UnixNano())
+
+	const numJobs = 10
 	const numWorkers = 3
 
-	jobs := make(chan int, numJobs)
-	results := make(chan int, numJobs)
-	errors := make(chan error, numJobs)
+	jobs := make(chan Job, numJobs)
+	results := make(chan Result, numJobs)
 
 	// Start workers
 	for w := 1; w <= numWorkers; w++ {
-		go workerWithErrors(w, jobs, results, errors)
+		go worker(w, jobs, results)
 	}
 
 	// Send jobs
 	for j := 1; j <= numJobs; j++ {
-		jobs <- j
+		jobs <- Job{ID: j, Data: j * 10}
 	}
 	close(jobs)
 
-	// Collect results or errors
+	// Collect results, handling errors
 	for a := 1; a <= numJobs; a++ {
-		select {
-		case res := <-results:
-			fmt.Printf("Result: %d
-", res)
-		case err := <-errors:
-			fmt.Printf("Error: %s
-", err)
+		result := <-results
+		if result.Err != nil {
+			fmt.Printf("Error: %v\n", result.Err)
+		} else {
+			fmt.Printf("Success: Job %d, Result: %d\n",
+				result.Job.ID, result.Value)
 		}
 	}
 }
 ```
 
-#### **Explanation:**
+This implementation:
 
-- This version introduces an error channel. If a worker fails to process a job (simulated randomly with `rand.Float32()`), an error message is sent to the error channel. Otherwise, the result is sent to the result channel.
-- The `select` statement handles either the results or errors depending on which channel is ready.
+- Uses custom types for jobs and results
+- Includes error information in the result
+- Properly handles both successful and failed jobs
 
-#### **Expected Output:**
+### **13.1.3 Worker Pool with Done Channel**
 
-```
-Worker 1 processing job 1
-Worker 2 processing job 2
-Worker 3 processing job 3
-Error: worker 2 failed on job 2
-Result: 9
-Result: 1
-...
-```
-
----
-
-## **13.3. Fan-In and Fan-Out**
-
-### What is Fan-In and Fan-Out?
-
-- **Fan-Out**: Distribute tasks across multiple goroutines to speed up processing.
-- **Fan-In**: Aggregate results from multiple channels into one channel to handle results in a unified manner.
-
-These patterns are highly useful when you want to distribute and aggregate work efficiently.
-
----
-
-### **13.3.1 Fan-Out by Example**
-
-#### Problem Statement:
-
-Distribute numbers among multiple workers to compute squares.
-
-#### **Code Implementation:**
+For proper cleanup and termination, we can add a done channel:
 
 ```go
 package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
-func squareWorker(id int, nums <-chan int, results chan<- int) {
-	for num := range nums {
-		fmt.Printf("Worker %d squaring %d
-", id, num)
-		time.Sleep(time.Second) // Simulate processing time
-		results <- num * num
+func worker(id int, jobs <-chan int, results chan<- int, done <-chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		select {
+		case job, ok := <-jobs:
+			if !ok {
+				// Channel closed, no more jobs
+				return
+			}
+			fmt.Printf("Worker %d processing job %d\n", id, job)
+			time.Sleep(time.Second)
+			results <- job * 2
+
+		case <-done:
+			// Received termination signal
+			fmt.Printf("Worker %d terminating\n", id)
+			return
+		}
 	}
 }
 
 func main() {
-	numbers := []int{1, 2, 3, 4, 5}
-	numWorkers := 3
+	const numWorkers = 3
 
-	nums := make(chan int, len(numbers))
-	results := make(chan int, len(numbers))
+	jobs := make(chan int, 10)
+	results := make(chan int, 10)
+	done := make(chan struct{})
+
+	var wg sync.WaitGroup
 
 	// Start workers
-	for i := 1; i <= numWorkers; i++ {
-		go squareWorker(i, nums, results)
+	for w := 1; w <= numWorkers; w++ {
+		wg.Add(1)
+		go worker(w, jobs, results, done, &wg)
 	}
 
-	// Send numbers to workers
-	for _, num := range numbers {
-		nums <- num
+	// Send some jobs
+	for j := 1; j <= 5; j++ {
+		jobs <- j
 	}
-	close(nums)
 
-	// Collect results
-	for range numbers {
-		fmt.Printf("Result: %d
-", <-results)
-	}
+	// Process results in a separate goroutine
+	go func() {
+		for result := range results {
+			fmt.Println("Result:", result)
+		}
+	}()
+
+	// Allow some work to happen
+	time.Sleep(3 * time.Second)
+
+	// Signal all workers to terminate
+	close(done)
+
+	// Wait for all workers to exit
+	wg.Wait()
+	fmt.Println("All workers have terminated")
 }
 ```
 
-#### **Explanation:**
+This implementation adds:
 
-- This example demonstrates the **Fan-Out** pattern. We create multiple worker goroutines that process a list of numbers concurrently. Each worker computes the square of the numbers sent to them through the channel.
+- A done channel for signaling termination
+- A WaitGroup to wait for all workers to exit
+- Proper cleanup when workers are terminated
 
-#### **Expected Output:**
+## **13.2 Fan-Out, Fan-In Pattern**
 
-```
-Worker 1 squaring 1
-Worker 2 squaring 2
-Worker 3 squaring 3
-Worker 1 squaring 4
-Worker 2 squaring 5
-Result: 1
-Result: 4
-Result: 9
-Result: 16
-Result: 25
-```
+The Fan-Out, Fan-In pattern involves:
 
----
+- **Fan-Out**: Distributing work across multiple goroutines
+- **Fan-In**: Collecting results from multiple goroutines into a single channel
 
-### **13.3.2 Fan-In by Example**
+This pattern is ideal for CPU-bound tasks that can be broken down into independent units of work.
 
-#### Problem Statement:
-
-Aggregate results from two separate channels into one channel.
-
-#### **Code Implementation:**
+### **13.2.1 Basic Fan-Out, Fan-In Implementation**
 
 ```go
 package main
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
-func generator(start, end int, ch chan<- int) {
-	for i := start; i <= end; i++ {
-		ch <- i
-		time.Sleep(500 * time.Millisecond)
-	}
-	close(ch)
+// Processor performs work on input
+func processor(id int, input int) int {
+	fmt.Printf("Processor %d processing input: %d\n", id, input)
+	time.Sleep(time.Second) // Simulate work
+	return input * input
 }
 
-func fanIn(ch1, ch2 <-chan int, merged chan<- int) {
-	for ch1 != nil || ch2 != nil {
-		select {
-		case val, ok := <-ch1:
-			if ok {
-				merged <- val
-			} else {
-				ch1 = nil
+// fanOut distributes work across multiple goroutines
+func fanOut(inputs []int, workers int) []<-chan int {
+	// Create a channel for each worker
+	channels := make([]<-chan int, workers)
+
+	// Distribute the work
+	for i := 0; i < workers; i++ {
+		ch := make(chan int)
+		channels[i] = ch
+
+		go func(workerID int, ch chan<- int) {
+			defer close(ch)
+
+			// Each worker processes inputs with an index % workers == workerID
+			for j, input := range inputs {
+				if j % workers == workerID {
+					ch <- processor(workerID, input)
+				}
 			}
-		case val, ok := <-ch2:
-			if ok {
-				merged <- val
-			} else {
-				ch2 = nil
-			}
+		}(i, ch)
+	}
+
+	return channels
+}
+
+// fanIn consolidates results from multiple channels into one
+func fanIn(channels []<-chan int) <-chan int {
+	var wg sync.WaitGroup
+	merged := make(chan int)
+
+	// Start an output goroutine for each input channel
+	output := func(ch <-chan int) {
+		defer wg.Done()
+		for val := range ch {
+			merged <- val
 		}
 	}
-	close(merged)
+
+	wg.Add(len(channels))
+	for _, ch := range channels {
+		go output(ch)
+	}
+
+	// Start a goroutine to close the merged channel after all inputs are done
+	go func() {
+		wg.Wait()
+		close(merged)
+	}()
+
+	return merged
 }
 
 func main() {
-	ch1 := make(chan int)
-	ch2 := make(chan int)
-	merged := make(chan int)
+	// Input data
+	inputs := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
-	go generator(1, 5, ch1)
-	go generator(6, 10, ch2)
-	go fanIn(ch1, ch2, merged)
+	// Fan-out: distribute work across 3 processors
+	channels := fanOut(inputs, 3)
 
-	for val := range merged {
-		fmt.Printf("Merged Value: %d
-", val)
+	// Fan-in: collect results
+	results := fanIn(channels)
+
+	// Consume results
+	for result := range results {
+		fmt.Println("Result:", result)
 	}
 }
 ```
 
-#### **Explanation:**
+This pattern is particularly useful when:
 
-- This example demonstrates the **Fan-In** pattern. We generate two sequences of numbers in separate goroutines (`ch1` and `ch2`), and then merge them into one channel (`merged`) using the `fanIn` function.
+- You have a large number of independent tasks to process
+- Tasks can be processed in parallel
+- You want to limit concurrency to a specific number of workers
 
-#### **Expected Output:**
+### **13.2.2 Advanced Fan-Out, Fan-In with Cancelation**
 
+Adding cancellation support makes the pattern more robust:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+)
+
+// processor performs work with cancellation support
+func processor(ctx context.Context, id int, input int) (int, error) {
+	select {
+	case <-time.After(time.Second): // Simulate work
+		return input * input, nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+// fanOut with context for cancellation
+func fanOut(ctx context.Context, inputs []int, workers int) []<-chan result {
+	channels := make([]<-chan result, workers)
+
+	for i := 0; i < workers; i++ {
+		ch := make(chan result)
+		channels[i] = ch
+
+		go func(workerID int, ch chan<- result) {
+			defer close(ch)
+
+			for j, input := range inputs {
+				if j % workers == workerID {
+					value, err := processor(ctx, workerID, input)
+					ch <- result{Value: value, Err: err}
+				}
+			}
+		}(i, ch)
+	}
+
+	return channels
+}
+
+// result includes both value and error
+type result struct {
+	Value int
+	Err   error
+}
+
+// fanIn with error propagation
+func fanIn(ctx context.Context, channels []<-chan result) <-chan result {
+	var wg sync.WaitGroup
+	merged := make(chan result)
+
+	output := func(ch <-chan result) {
+		defer wg.Done()
+		for res := range ch {
+		select {
+			case merged <- res:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+
+	wg.Add(len(channels))
+	for _, ch := range channels {
+		go output(ch)
+	}
+
+	go func() {
+		wg.Wait()
+	close(merged)
+	}()
+
+	return merged
+}
+
+func main() {
+	// Create a context with cancellation
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Input data
+	inputs := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	// Fan-out
+	channels := fanOut(ctx, inputs, 3)
+
+	// Fan-in
+	results := fanIn(ctx, channels)
+
+	// Consume results, handling errors
+	for res := range results {
+		if res.Err != nil {
+			fmt.Printf("Error: %v\n", res.Err)
+		} else {
+			fmt.Println("Result:", res.Value)
+		}
+	}
+}
 ```
-Merged Value: 1
-Merged Value: 6
-Merged Value: 2
-Merged Value: 7
-...
+
+This enhanced implementation:
+
+- Uses context for cancellation
+- Properly propagates errors
+- Can be canceled by timeout or explicit cancellation
+
+## **13.3 Pipeline Pattern**
+
+A pipeline is a series of stages connected by channels, where each stage:
+
+1. Receives data from upstream
+2. Performs some processing
+3. Sends the result downstream
+
+Pipelines are effective for breaking complex processing into discrete, reusable stages.
+
+### **13.3.1 Basic Pipeline Implementation**
+
+```go
+package main
+
+import (
+	"fmt"
+)
+
+// generator - the first stage that produces data
+func generator(nums ...int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for _, n := range nums {
+			out <- n
+		}
+	}()
+	return out
+}
+
+// square - the second stage that squares numbers
+func square(in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for n := range in {
+			out <- n * n
+		}
+	}()
+	return out
+}
+
+// filter - the third stage that filters out odd numbers
+func filter(in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for n := range in {
+			if n%2 == 0 { // Only keep even numbers
+				out <- n
+			}
+		}
+	}()
+	return out
+}
+
+func main() {
+	// Set up the pipeline
+	// Stage 1: Generate integers
+	numbers := generator(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+	// Stage 2: Square the numbers
+	squares := square(numbers)
+
+	// Stage 3: Filter out odd squares
+	filtered := filter(squares)
+
+	// Consume the output
+	for n := range filtered {
+		fmt.Println(n)
+	}
+}
 ```
 
----
+This pipeline:
 
-## **Key Takeaways**
+- Generates a sequence of numbers
+- Squares each number
+- Filters out odd results
+- Each stage runs in its own goroutine, enabling concurrent processing
 
-1. **Worker Pools** help distribute workload among a fixed number of workers, managing concurrency and avoiding system overload.
-2. **Fan-Out** distributes tasks across multiple workers, and **Fan-In** combines results from multiple channels into a single one for easier aggregation.
-3. Patterns like these allow you to efficiently utilize goroutines and channels to build scalable and maintainable concurrent systems in Go.
+### **13.3.2 Pipeline with Cancelation**
 
----
+Adding cancellation makes pipelines more robust:
 
-# **13.4. Exercises**
+```go
+package main
 
-## **Exercise 1: Basic Worker Pool**
+import (
+	"context"
+	"fmt"
+)
 
-**Problem**: Create a worker pool to process numbers and calculate their cubes.
+// generator with context
+func generator(ctx context.Context, nums ...int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for _, n := range nums {
+			select {
+			case out <- n:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
+}
+
+// square with context
+func square(ctx context.Context, in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for n := range in {
+			select {
+			case out <- n * n:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return out
+}
+
+// filter with context
+func filter(ctx context.Context, in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out)
+		for n := range in {
+			if n%2 == 0 {
+				select {
+				case out <- n:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out
+}
+
+func main() {
+	// Create a context that can be canceled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure all resources are released
+
+	// Set up the pipeline with cancellation
+	numbers := generator(ctx, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	squares := square(ctx, numbers)
+	filtered := filter(ctx, squares)
+
+	// Consume just a few values, then cancel
+	for i := 0; i < 3; i++ {
+		value, ok := <-filtered
+		if !ok {
+			break
+		}
+		fmt.Println(value)
+	}
+
+	// Cancel the pipeline early
+	cancel()
+	fmt.Println("Pipeline canceled")
+}
+```
+
+This implementation:
+
+- Adds context to each stage for cancellation
+- Properly handles early termination
+- Releases resources when the pipeline is canceled
+
+## **13.4 Timeout and Cancelation Patterns**
+
+Managing timeouts and cancellation is crucial for robust concurrent programs.
+
+### **13.4.1 Timeout Pattern**
+
+The timeout pattern prevents operations from blocking indefinitely:
 
 ```go
 package main
@@ -363,6 +639,81 @@ import (
 	"fmt"
 	"time"
 )
+
+func operation(timeout time.Duration) (string, error) {
+	ch := make(chan string)
+
+	// Start the operation
+	go func() {
+		// Simulate a long-running operation
+		time.Sleep(2 * time.Second)
+		ch <- "Operation completed"
+	}()
+
+	// Wait for the result or timeout
+	select {
+	case result := <-ch:
+		return result, nil
+	case <-time.After(timeout):
+		return "", fmt.Errorf("operation timed out after %v", timeout)
+	}
+}
+
+func main() {
+	// Try with 1 second timeout (should fail)
+	result, err := operation(1 * time.Second)
+	if err != nil {
+		fmt.Println("First attempt:", err)
+	} else {
+		fmt.Println("First attempt:", result)
+	}
+
+	// Try with 3 second timeout (should succeed)
+	result, err = operation(3 * time.Second)
+	if err != nil {
+		fmt.Println("Second attempt:", err)
+	} else {
+		fmt.Println("Second attempt:", result)
+	}
+}
+```
+
+This pattern is useful for:
+
+- External API calls
+- Network operations
+- Any long-running operation that should be bounded in time
+
+### **13.4.2 Cancellation with Context**
+
+The context package provides a standardized way to handle cancellation:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+// longRunningOperation simulates work that can be canceled
+func longRunningOperation(ctx context.Context) (string, error) {
+	// Create a channel for the result
+	resultCh := make(chan string)
+
+	go func() {
+		// Simulate steps in the operation
+		for i := 1; i <= 5; i++ {
+			// Check if context was canceled
+			select {
+			case <-ctx.Done():
+				return // Exit the goroutine
+			case <-time.After(500 * time.Millisecond):
+				// Continue with the next step
+				fmt.Printf("Step %d completed\n", i)
+			}
+		}
 
 func worker(id int, jobs <-chan int, results chan<- int) {
 	for job := range jobs {

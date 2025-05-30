@@ -1,760 +1,949 @@
 # **Chapter 23: Essential Design Patterns in Go**
 
----
+## **23.1. Introduction to Design Patterns in Go**
 
-## **23.1. Introduction to Design Patterns**
+Design patterns are proven solutions to common problems in software design. In Go, these patterns take on a unique flavor due to the language's distinctive features: strong typing, implicit interfaces, composition over inheritance, and powerful concurrency primitives.
 
-Design patterns are proven solutions to common problems in software design. They provide a reusable template to solve specific problems in a structured way. In this chapter, we will explore 10 essential design patterns every Go developer should know. These patterns will help you:
+This chapter provides a comprehensive, practical guide to implementing design patterns in idiomatic Go. We'll explore:
 
-- Write more organized and maintainable code.
-- Solve common software design problems efficiently.
-- Understand how to apply patterns in Go's idiomatic style.
+- How classic design patterns adapt to Go's philosophy
+- Go-specific patterns that leverage the language's unique features
+- Practical, real-world examples with working code
+- When to use (and when to avoid) each pattern
 
----
+### **Why Design Patterns Matter in Go**
 
-## **23.2. Why Design Patterns Matter**
+While experienced Go developers often emphasize simplicity over patterns, understanding design patterns offers several benefits:
 
-1. **Reusability**: Avoid reinventing the wheel by using tried-and-tested solutions.
-2. **Maintainability**: Simplify the structure of your code, making it easier to understand and extend.
-3. **Scalability**: Design systems that are easier to scale and adapt as requirements change.
+1. **Shared vocabulary**: Patterns provide a common language to discuss architectural solutions.
+2. **Proven solutions**: They offer time-tested approaches to recurring problems.
+3. **Code organization**: Patterns help structure complex applications.
+4. **Maintainability**: Well-applied patterns make code easier to understand and extend.
 
----
+### **Go's Approach to Design Patterns**
 
-## **23.3. 10 Essential Design Patterns**
+Go differs from traditional object-oriented languages in ways that affect pattern implementation:
 
-We’ll cover the following patterns with simple explanations, real-world scenarios, and examples:
+1. **Interface-based polymorphism**: Go uses implicit interfaces rather than explicit inheritance.
+2. **Composition over inheritance**: Go encourages embedding rather than extending.
+3. **First-class functions**: Functions can be passed as values, simplifying certain patterns.
+4. **Concurrency primitives**: Goroutines and channels provide alternatives to thread-based patterns.
+
+### **Adapting Classic Patterns to Go**
+
+When implementing design patterns in Go, consider these principles:
+
+1. **Keep it simple**: Go values simplicity; avoid over-engineering.
+2. **Use small interfaces**: Define focused interfaces with just the methods you need.
+3. **Embrace composition**: Use struct embedding to compose behavior.
+4. **Consider Go idioms**: Some problems solved by patterns in other languages have simpler solutions in Go.
+
+With these principles in mind, let's explore both classic and Go-specific design patterns.
+
+## **23.2. Creational Patterns**
+
+Creational patterns abstract the instantiation process, making systems more independent of how their objects are created and composed.
 
 ### **1. Singleton Pattern**
 
-**Why?** Ensure a single instance of a resource (e.g., database connection) is created and shared.
+**Purpose**: Ensure a class has only one instance and provide a global point of access to it.
 
-**Example: Database Connection**
+**Go Implementation**: In Go, singletons are typically implemented using package variables or sync.Once.
+
+**Example: Thread-Safe Database Connection**
 
 ```go
-package main
+package database
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
+
+	_ "github.com/lib/pq"
 )
 
-type Database struct{}
+var (
+	instance *sql.DB
+	once     sync.Once
+	connErr  error
+)
 
-var instance *Database
-var once sync.Once
-
-func GetDatabaseInstance() *Database {
+// GetConnection returns a thread-safe singleton database connection
+func GetConnection(connString string) (*sql.DB, error) {
 	once.Do(func() {
-		fmt.Println("Creating a single database instance")
-		instance = &Database{}
+		instance, connErr = sql.Open("postgres", connString)
+		if connErr == nil {
+			// Configure connection pool
+			instance.SetMaxOpenConns(25)
+			instance.SetMaxIdleConns(5)
+			connErr = instance.Ping() // Verify connection
+			if connErr != nil {
+				fmt.Printf("Database connection failed: %v\n", connErr)
+			}
+		}
 	})
-	return instance
-}
-
-func main() {
-	db1 := GetDatabaseInstance()
-	db2 := GetDatabaseInstance()
-	fmt.Println(db1 == db2) // Output: true
+	return instance, connErr
 }
 ```
 
----
-
-### **2. Factory Pattern**
-
-**Why?** Encapsulate the creation of objects to avoid direct instantiation.
-
-**Example: Shape Factory**
+**Usage**:
 
 ```go
-package main
+func main() {
+	connStr := "user=postgres dbname=myapp sslmode=disable"
+	db, err := database.GetConnection(connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Use the same connection throughout your application
+	// Every call to GetConnection returns the same instance
+}
+```
+
+**When to Use in Go**:
+
+- Managing database connections
+- Creating shared resource handlers
+- Implementing logger instances
+
+**Go-Specific Considerations**:
+
+- Consider using a package-level variable for simple singletons
+- For testability, consider dependency injection instead of true singletons
+- Use init() with caution, as it can make testing difficult
+
+### **2. Factory Method Pattern**
+
+**Purpose**: Define an interface for creating an object, but let subclasses decide which class to instantiate.
+
+**Go Implementation**: In Go, factory methods are typically functions that return interface types.
+
+**Example: Payment Processor Factory**
+
+```go
+package payment
 
 import "fmt"
 
-type Shape interface {
-	Draw()
+// PaymentProcessor defines the interface for processing payments
+type PaymentProcessor interface {
+	Process(amount float64) error
+	Currency() string
 }
 
-type Circle struct{}
-func (c Circle) Draw() { fmt.Println("Drawing a Circle") }
+// CreditCardProcessor handles credit card payments
+type CreditCardProcessor struct {
+	cardNumber string
+}
 
-type Square struct{}
-func (s Square) Draw() { fmt.Println("Drawing a Square") }
-
-func GetShape(shapeType string) Shape {
-	switch shapeType {
-	case "circle":
-		return Circle{}
-	case "square":
-		return Square{}
-	default:
+func (c *CreditCardProcessor) Process(amount float64) error {
+	fmt.Printf("Processing $%.2f via credit card %s\n", amount, c.cardNumber)
 		return nil
 	}
+
+func (c *CreditCardProcessor) Currency() string {
+	return "USD"
 }
 
-func main() {
-	shape := GetShape("circle")
-	shape.Draw() // Output: Drawing a Circle
+// PayPalProcessor handles PayPal payments
+type PayPalProcessor struct {
+	email string
+}
+
+func (p *PayPalProcessor) Process(amount float64) error {
+	fmt.Printf("Processing $%.2f via PayPal account %s\n", amount, p.email)
+	return nil
+}
+
+func (p *PayPalProcessor) Currency() string {
+	return "USD"
+}
+
+// CryptoProcessor handles cryptocurrency payments
+type CryptoProcessor struct {
+	walletID string
+}
+
+func (c *CryptoProcessor) Process(amount float64) error {
+	fmt.Printf("Processing $%.2f worth of crypto to wallet %s\n", amount, c.walletID)
+	return nil
+}
+
+func (c *CryptoProcessor) Currency() string {
+	return "BTC"
+}
+
+// CreatePaymentProcessor is the factory method
+func CreatePaymentProcessor(method string, details string) (PaymentProcessor, error) {
+	switch method {
+	case "credit_card":
+		return &CreditCardProcessor{cardNumber: details}, nil
+	case "paypal":
+		return &PayPalProcessor{email: details}, nil
+	case "crypto":
+		return &CryptoProcessor{walletID: details}, nil
+	default:
+		return nil, fmt.Errorf("unsupported payment method: %s", method)
+	}
 }
 ```
 
----
+**Usage**:
+
+```go
+func main() {
+	// Create a credit card processor
+	processor, err := payment.CreatePaymentProcessor("credit_card", "4111-1111-1111-1111")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Process payment
+	err = processor.Process(99.99)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a different type of processor
+	cryptoProcessor, _ := payment.CreatePaymentProcessor("crypto", "0x1234567890abcdef")
+	cryptoProcessor.Process(150.00)
+}
+```
+
+**When to Use in Go**:
+
+- Creating objects based on runtime conditions
+- Implementing plugin systems
+- Working with multiple implementations of an interface
+
+**Go-Specific Considerations**:
+
+- Return interfaces, not concrete types, to maintain flexibility
+- Consider providing multiple factory functions for clarity
+- For simple cases, constructors (NewXxx functions) may be sufficient
 
 ### **3. Builder Pattern**
 
-**Why?** Simplify complex object creation by breaking it into steps.
+**Purpose**: Separate the construction of a complex object from its representation.
 
-**Example: Building a Car**
+**Go Implementation**: In Go, the builder pattern often uses method chaining with pointer receivers.
 
-```go
-package main
-
-import "fmt"
-
-type Car struct {
-	Engine string
-	Wheels int
-	Color  string
-}
-
-type CarBuilder struct {
-	car Car
-}
-
-func (b *CarBuilder) SetEngine(engine string) *CarBuilder {
-	b.car.Engine = engine
-	return b
-}
-
-func (b *CarBuilder) SetWheels(wheels int) *CarBuilder {
-	b.car.Wheels = wheels
-	return b
-}
-
-func (b *CarBuilder) SetColor(color string) *CarBuilder {
-	b.car.Color = color
-	return b
-}
-
-func (b *CarBuilder) Build() Car {
-	return b.car
-}
-
-func main() {
-	car := (&CarBuilder{}).SetEngine("V8").SetWheels(4).SetColor("Red").Build()
-	fmt.Printf("Car: %+v
-", car) // Output: Car: {Engine:V8 Wheels:4 Color:Red}
-}
-```
-
----
-
-### **4. Adapter Pattern**
-
-**Why?** Allow incompatible interfaces to work together.
-
-**Example: Power Adapter**
+**Example: HTTP Request Builder**
 
 ```go
-package main
+package request
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"time"
+)
 
-type OldCharger struct{}
-func (c OldCharger) Charge() { fmt.Println("Charging with Old Charger") }
-
-type NewCharger struct{}
-func (c NewCharger) FastCharge() { fmt.Println("Fast Charging with New Charger") }
-
-type ChargerAdapter struct {
-	NewCharger NewCharger
+// RequestBuilder helps construct HTTP requests
+type RequestBuilder struct {
+	method      string
+	url         string
+	headers     map[string]string
+	queryParams map[string]string
+	body        io.Reader
+	timeout     time.Duration
+	client      *http.Client
 }
 
-func (a ChargerAdapter) Charge() {
-	a.NewCharger.FastCharge()
-}
-
-func main() {
-	adapter := ChargerAdapter{NewCharger: NewCharger{}}
-	adapter.Charge() // Output: Fast Charging with New Charger
-}
-```
-
----
-
-### **5. Observer Pattern**
-
-**Why?** Notify multiple objects about changes in another object.
-
-**Example: Stock Price Updates**
-
-```go
-package main
-
-import "fmt"
-
-type Observer interface {
-	Update(price float64)
-}
-
-type Stock struct {
-	observers []Observer
-	price     float64
-}
-
-func (s *Stock) AddObserver(o Observer) {
-	s.observers = append(s.observers, o)
-}
-
-func (s *Stock) SetPrice(price float64) {
-	s.price = price
-	for _, o := range s.observers {
-		o.Update(price)
+// NewRequestBuilder creates a new RequestBuilder
+func NewRequestBuilder() *RequestBuilder {
+	return &RequestBuilder{
+		headers:     make(map[string]string),
+		queryParams: make(map[string]string),
+		client:      &http.Client{},
 	}
 }
 
-type Investor struct {
-	Name string
+// Method sets the HTTP method
+func (b *RequestBuilder) Method(method string) *RequestBuilder {
+	b.method = method
+	return b
 }
 
-func (i Investor) Update(price float64) {
-	fmt.Printf("%s notified: Stock price updated to %.2f
-", i.Name, price)
+// URL sets the request URL
+func (b *RequestBuilder) URL(url string) *RequestBuilder {
+	b.url = url
+	return b
 }
 
-func main() {
-	stock := &Stock{}
-	investor1 := Investor{Name: "Alice"}
-	investor2 := Investor{Name: "Bob"}
+// Header adds a header to the request
+func (b *RequestBuilder) Header(key, value string) *RequestBuilder {
+	b.headers[key] = value
+	return b
+}
 
-	stock.AddObserver(investor1)
-	stock.AddObserver(investor2)
+// QueryParam adds a query parameter
+func (b *RequestBuilder) QueryParam(key, value string) *RequestBuilder {
+	b.queryParams[key] = value
+	return b
+}
 
-	stock.SetPrice(100.0) // Both Alice and Bob are notified.
+// JSONBody sets the request body as JSON
+func (b *RequestBuilder) JSONBody(data interface{}) *RequestBuilder {
+	jsonData, _ := json.Marshal(data)
+	b.body = bytes.NewBuffer(jsonData)
+	b.Header("Content-Type", "application/json")
+	return b
+}
+
+// Timeout sets the request timeout
+func (b *RequestBuilder) Timeout(d time.Duration) *RequestBuilder {
+	b.timeout = d
+	return b
+}
+
+// Build creates the HTTP request
+func (b *RequestBuilder) Build() (*http.Request, error) {
+	req, err := http.NewRequest(b.method, b.url, b.body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add headers
+	for key, value := range b.headers {
+		req.Header.Add(key, value)
+	}
+
+	// Add query parameters
+	q := req.URL.Query()
+	for key, value := range b.queryParams {
+		q.Add(key, value)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	return req, nil
+}
+
+// Send builds and sends the HTTP request
+func (b *RequestBuilder) Send() (*http.Response, error) {
+	req, err := b.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	if b.timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), b.timeout)
+		defer cancel()
+		req = req.WithContext(ctx)
+	}
+
+	return b.client.Do(req)
 }
 ```
 
----
-
-### **6. Strategy Pattern**
-
-**Why?** Allow interchangeable algorithms at runtime.
-
-**Example: Payment Methods**
+**Usage**:
 
 ```go
-package main
-
-import "fmt"
-
-type PaymentStrategy interface {
-	Pay(amount float64)
-}
-
-type CreditCard struct{}
-func (c CreditCard) Pay(amount float64) { fmt.Printf("Paid %.2f using Credit Card
-", amount) }
-
-type PayPal struct{}
-func (p PayPal) Pay(amount float64) { fmt.Printf("Paid %.2f using PayPal
-", amount) }
-
-type PaymentContext struct {
-	Strategy PaymentStrategy
-}
-
-func (c *PaymentContext) SetStrategy(strategy PaymentStrategy) {
-	c.Strategy = strategy
-}
-
-func (c PaymentContext) Pay(amount float64) {
-	c.Strategy.Pay(amount)
-}
-
 func main() {
-	context := PaymentContext{}
+	// Build and send a JSON request
+	response, err := request.NewRequestBuilder().
+		Method("POST").
+		URL("https://api.example.com/users").
+		Header("Authorization", "Bearer token123").
+		QueryParam("version", "2").
+		JSONBody(map[string]interface{}{
+			"name": "John Doe",
+			"email": "john@example.com",
+		}).
+		Timeout(5 * time.Second).
+		Send()
 
-	context.SetStrategy(CreditCard{})
-	context.Pay(50.0) // Output: Paid 50.00 using Credit Card
+	if err != nil {
+		log.Fatalf("Request failed: %v", err)
+	}
+	defer response.Body.Close()
 
-	context.SetStrategy(PayPal{})
-	context.Pay(75.0) // Output: Paid 75.00 using PayPal
+	// Process response...
 }
 ```
 
----
+**When to Use in Go**:
 
-### **7. Decorator Pattern**
+- Creating complex objects step by step
+- When an object has many optional parameters
+- When you want to enforce construction order
 
-**Why?** Add functionality to objects dynamically.
+**Go-Specific Considerations**:
 
-**Example: Adding Features to Coffee**
+- Method chaining works well with Go's pointer receivers
+- Consider functional options pattern for simpler cases
+- Provide sensible defaults for optional parameters
+
+## **23.3. Structural Patterns**
+
+Structural patterns focus on how classes and objects are composed to form larger structures.
+
+### **4. Adapter Pattern**
+
+**Purpose**: Convert the interface of a class into another interface clients expect.
+
+**Go Implementation**: In Go, adapters often wrap one interface to satisfy another.
+
+**Example: Payment Gateway Adapter**
 
 ```go
-package main
+package payment
 
-import "fmt"
-
-type Coffee interface {
-	Cost() float64
-	Description() string
+// ThirdPartyPayment represents an external payment processor's interface
+type ThirdPartyPayment interface {
+	ExecuteTransaction(amount int, currency string, destination string) (string, error)
+	VerifyTransaction(id string) (bool, error)
 }
 
-type BasicCoffee struct{}
-func (b BasicCoffee) Cost() float64          { return 5.0 }
-func (b BasicCoffee) Description() string    { return "Basic Coffee" }
-
-type MilkDecorator struct {
-	Coffee Coffee
+// Our application's payment interface
+type PaymentProcessor interface {
+	Pay(amount float64, destination string) (string, error)
+	Verify(transactionID string) (bool, error)
 }
-func (m MilkDecorator) Cost() float64        { return m.Coffee.Cost() + 1.5 }
-func (m MilkDecorator) Description() string  { return m.Coffee.Description() + " + Milk" }
 
-type SugarDecorator struct {
-	Coffee Coffee
+// PaymentAdapter adapts ThirdPartyPayment to our PaymentProcessor interface
+type PaymentAdapter struct {
+	processor ThirdPartyPayment
 }
-func (s SugarDecorator) Cost() float64       { return s.Coffee.Cost() + 0.5 }
-func (s SugarDecorator) Description() string { return s.Coffee.Description() + " + Sugar" }
 
-func main() {
-	coffee := BasicCoffee{}
-	coffee = MilkDecorator{Coffee: coffee}
-	coffee = SugarDecorator{Coffee: coffee}
-	fmt.Printf("%s: $%.2f
-", coffee.Description(), coffee.Cost()) // Output: Basic Coffee + Milk + Sugar: $7.00
+// NewPaymentAdapter creates a new adapter
+func NewPaymentAdapter(processor ThirdPartyPayment) PaymentProcessor {
+	return &PaymentAdapter{
+		processor: processor,
+	}
+}
+
+// Pay implements PaymentProcessor.Pay by adapting to ThirdPartyPayment.ExecuteTransaction
+func (a *PaymentAdapter) Pay(amount float64, destination string) (string, error) {
+	// Convert amount to cents (int)
+	amountInCents := int(amount * 100)
+
+	// Call the adapted method
+	return a.processor.ExecuteTransaction(amountInCents, "USD", destination)
+}
+
+// Verify implements PaymentProcessor.Verify
+func (a *PaymentAdapter) Verify(transactionID string) (bool, error) {
+	return a.processor.VerifyTransaction(transactionID)
+}
+
+// Example implementation of ThirdPartyPayment
+type StripePaymentProcessor struct{}
+
+func (s *StripePaymentProcessor) ExecuteTransaction(amount int, currency string, destination string) (string, error) {
+	// Implementation omitted
+	return "tx_12345", nil
+}
+
+func (s *StripePaymentProcessor) VerifyTransaction(id string) (bool, error) {
+	// Implementation omitted
+	return true, nil
 }
 ```
 
----
-
-### **8. Command Pattern**
-
-**Why?** Encapsulate requests as objects.
-
-**Example: Remote Control**
+**Usage**:
 
 ```go
-package main
-
-import "fmt"
-
-type Command interface {
-	Execute()
-}
-
-type Light struct{}
-func (l Light) On() { fmt.Println("Light is On") }
-func (l Light) Off() { fmt.Println("Light is Off") }
-
-type LightOnCommand struct {
-	Light Light
-}
-func (c LightOnCommand) Execute() { c.Light.On() }
-
-type LightOffCommand struct {
-	Light Light
-}
-func (c LightOffCommand) Execute() { c.Light.Off() }
-
 func main() {
-	light := Light{}
-	onCommand := LightOnCommand{Light: light}
-	offCommand := LightOffCommand{Light: light}
+	// Create the third-party processor
+	stripeProcessor := &payment.StripePaymentProcessor{}
 
-	onCommand.Execute()  // Output: Light is On
-	offCommand.Execute() // Output: Light is Off
+	// Adapt it to our interface
+	paymentProcessor := payment.NewPaymentAdapter(stripeProcessor)
+
+	// Use our interface
+	transactionID, err := paymentProcessor.Pay(99.99, "customer@example.com")
+	if err != nil {
+		log.Fatalf("Payment failed: %v", err)
+	}
+
+	// Verify payment
+	verified, _ := paymentProcessor.Verify(transactionID)
+	fmt.Printf("Transaction %s verified: %v\n", transactionID, verified)
 }
 ```
 
----
+**When to Use in Go**:
 
-### **9. Proxy Pattern**
+- Integrating with third-party libraries
+- Making incompatible interfaces work together
+- Providing a consistent interface over varied implementations
 
-**Why?** Control access to an object.
+**Go-Specific Considerations**:
 
-**Example: Database Query Proxy**
+- Go's implicit interfaces make adapters simpler
+- Consider embedding for simple adaptations
+- Focus on small, focused interfaces
+
+### **5. Decorator Pattern**
+
+**Purpose**: Attach additional responsibilities to objects dynamically.
+
+**Go Implementation**: In Go, decorators typically wrap interfaces and add functionality.
+
+**Example: HTTP Middleware Decorator**
 
 ```go
-package main
+package http
 
-import "fmt"
+import (
+	"log"
+	"net/http"
+	"time"
+)
 
-type Database interface {
-	Query(query string)
+// Handler is our simplified HTTP handler interface
+type Handler interface {
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
-type RealDatabase struct{}
-func (d RealDatabase) Query(query string) {
-	fmt.Println("Executing query:", query)
+// LoggingDecorator adds logging capabilities to any Handler
+type LoggingDecorator struct {
+	next Handler
 }
 
-type DatabaseProxy struct {
-	RealDB RealDatabase
-}
-func (p DatabaseProxy) Query(query string) {
-	fmt.Println("Logging query:", query)
-	p.RealDB.Query(query)
+// NewLoggingDecorator creates a new logging decorator
+func NewLoggingDecorator(next Handler) Handler {
+	return &LoggingDecorator{next: next}
 }
 
-func main() {
-	proxy := DatabaseProxy{RealDB: RealDatabase{}}
-	proxy.Query("SELECT * FROM users")
+// ServeHTTP implements the Handler interface
+func (d *LoggingDecorator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	log.Printf("Started %s %s", r.Method, r.URL.Path)
+
+	// Call the wrapped handler
+	d.next.ServeHTTP(w, r)
+
+	log.Printf("Completed %s %s in %v", r.Method, r.URL.Path, time.Since(start))
+}
+
+// AuthDecorator adds authentication to any Handler
+type AuthDecorator struct {
+	next Handler
+}
+
+// NewAuthDecorator creates a new auth decorator
+func NewAuthDecorator(next Handler) Handler {
+	return &AuthDecorator{next: next}
+}
+
+// ServeHTTP implements the Handler interface
+func (d *AuthDecorator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Check for auth token
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Token validation would go here
+
+	// Call the wrapped handler
+	d.next.ServeHTTP(w, r)
+}
+
+// CompressionDecorator adds response compression
+type CompressionDecorator struct {
+	next Handler
+}
+
+// NewCompressionDecorator creates a new compression decorator
+func NewCompressionDecorator(next Handler) Handler {
+	return &CompressionDecorator{next: next}
+}
+
+// ServeHTTP implements the Handler interface
+func (d *CompressionDecorator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Check if client accepts gzip
+	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		d.next.ServeHTTP(w, r)
+		return
+	}
+
+	// Create gzip response writer
+	w.Header().Set("Content-Encoding", "gzip")
+	gz := gzip.NewWriter(w)
+	defer gz.Close()
+
+	gzw := &gzipResponseWriter{Writer: gz, ResponseWriter: w}
+	d.next.ServeHTTP(gzw, r)
+}
+
+// Simple handler that will be decorated
+type HelloHandler struct{}
+
+func (h *HelloHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Hello, World!"))
 }
 ```
 
----
-
-### **10. State Pattern**
-
-**Why?** Manage object states with separate behaviors for each state.
-
-**Example: Traffic Light**
+**Usage**:
 
 ```go
-package main
-
-import "fmt"
-
-type TrafficLightState interface {
-	Next()
-}
-
-type RedState struct{}
-func (r RedState) Next() { fmt.Println("Changing to Green") }
-
-type GreenState struct{}
-func (g GreenState) Next() { fmt.Println("Changing to Yellow") }
-
-type YellowState struct{}
-func (y YellowState) Next() { fmt.Println("Changing to Red") }
-
 func main() {
-	currentState := RedState{}
-	currentState.Next() // Output: Changing to Green
+	// Create a base handler
+	helloHandler := &HelloHandler{}
+
+	// Decorate it with multiple behaviors
+	handler := NewLoggingDecorator(
+		NewAuthDecorator(
+			NewCompressionDecorator(
+				helloHandler,
+			),
+		),
+	)
+
+	// Use the decorated handler
+	http.ListenAndServe(":8080", handler)
 }
 ```
 
+**When to Use in Go**:
 
-# **Exercises**
+- Adding cross-cutting concerns like logging or metrics
+- Building middleware chains
+- Adding optional features to core components
 
----
+**Go-Specific Considerations**:
 
-## **Exercise 1: Singleton Pattern**
+- Go's interfaces make decorators elegant and type-safe
+- Consider using functional middleware for simpler cases
+- Decorators can be combined with the builder pattern for cleaner API
 
-**Scenario**: You are building a logging system that should ensure a single logger instance is used throughout your application.
+## **23.11. Go-Specific Patterns**
 
-**Code Solution**:
+In addition to classic design patterns, Go has developed its own idioms and patterns that leverage the language's unique features.
+
+### **Go Pattern 1: Functional Options**
+
+**Purpose**: Provide a flexible way to configure structs with optional parameters.
+
+**Example: Server Configuration**
+
+```go
+package server
+
+import (
+	"crypto/tls"
+	"time"
+)
+
+// Server represents an HTTP server
+type Server struct {
+	host         string
+	port         int
+	readTimeout  time.Duration
+	writeTimeout time.Duration
+	maxConns     int
+	tls          *tls.Config
+}
+
+// Option defines a server option
+type Option func(*Server)
+
+// WithPort sets the server port
+func WithPort(port int) Option {
+	return func(s *Server) {
+		s.port = port
+	}
+}
+
+// WithTimeout sets the read and write timeouts
+func WithTimeout(timeout time.Duration) Option {
+	return func(s *Server) {
+		s.readTimeout = timeout
+		s.writeTimeout = timeout
+	}
+}
+
+// WithTLS enables TLS with the provided config
+func WithTLS(cert, key string) Option {
+	return func(s *Server) {
+		cert, err := tls.LoadX509KeyPair(cert, key)
+		if err != nil {
+			return
+		}
+		s.tls = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+	}
+}
+
+// WithMaxConnections sets the maximum number of connections
+func WithMaxConnections(n int) Option {
+	return func(s *Server) {
+		s.maxConns = n
+	}
+}
+
+// NewServer creates a server with the given options
+func NewServer(host string, options ...Option) *Server {
+	// Default configuration
+	server := &Server{
+		host:         host,
+		port:         8080,
+		readTimeout:  30 * time.Second,
+		writeTimeout: 30 * time.Second,
+		maxConns:     1000,
+	}
+
+	// Apply options
+	for _, option := range options {
+		option(server)
+	}
+
+	return server
+}
+```
+
+**Usage**:
+
+```go
+func main() {
+	// Create server with defaults
+	server1 := server.NewServer("localhost")
+
+	// Create server with options
+	server2 := server.NewServer("api.example.com",
+		server.WithPort(443),
+		server.WithTimeout(10 * time.Second),
+		server.WithTLS("cert.pem", "key.pem"),
+		server.WithMaxConnections(10000),
+	)
+
+	// Start servers
+	server1.Start()
+	server2.Start()
+}
+```
+
+**When to Use**:
+
+- Configuring complex objects with many optional parameters
+- Creating clean, flexible APIs
+- When you want to provide sensible defaults
+
+### **Go Pattern 2: Error Wrapping**
+
+**Purpose**: Provide context to errors while preserving the original error.
+
+**Example: Error Context Chain**
 
 ```go
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
-	"sync"
 )
 
-type Logger struct{}
-
-var instance *Logger
-var once sync.Once
-
-func GetLoggerInstance() *Logger {
-	once.Do(func() {
-		instance = &Logger{}
-		fmt.Println("Logger instance created")
-	})
-	return instance
+// UserService handles user-related operations
+type UserService struct {
+	db *sql.DB
 }
 
-func (l *Logger) Log(message string) {
-	fmt.Println("Log:", message)
+// GetUser retrieves a user by ID
+func (s *UserService) GetUser(id int) (User, error) {
+	user, err := s.findUserByID(id)
+	if err != nil {
+		return User{}, fmt.Errorf("GetUser: %w", err)
+	}
+	return user, nil
 }
 
-func main() {
-	logger1 := GetLoggerInstance()
-	logger2 := GetLoggerInstance()
+// findUserByID is an internal method to fetch a user
+func (s *UserService) findUserByID(id int) (User, error) {
+	var user User
+	err := s.db.QueryRow("SELECT id, name, email FROM users WHERE id = ?", id).
+		Scan(&user.ID, &user.Name, &user.Email)
 
-	logger1.Log("Singleton Pattern")
-	fmt.Println(logger1 == logger2) // Output: true
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, fmt.Errorf("findUserByID: user with id %d not found: %w", id, err)
+		}
+		return User{}, fmt.Errorf("findUserByID: database error: %w", err)
+	}
+
+	return user, nil
 }
 ```
 
----
+**Usage**:
 
-## **Exercise 2: Factory Pattern**
+```go
+func main() {
+	userService := &UserService{db: database}
 
-**Scenario**: Create a factory function that generates animals. Each animal should have a `Speak` method.
+	user, err := userService.GetUser(123)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Handle not found case
+			fmt.Println("User not found")
+		} else {
+			// Handle other errors
+			fmt.Printf("Error: %v\n", err)
+		}
+		return
+	}
 
-**Code Solution**:
+	fmt.Printf("Found user: %+v\n", user)
+}
+```
+
+**When to Use**:
+
+- Building error chains in multi-layer applications
+- Providing context while preserving original error types
+- When error handling needs to be comprehensive
+
+### **Go Pattern 3: Context Package for Cancellation**
+
+**Purpose**: Manage request-scoped data, cancellation signals, and deadlines.
+
+**Example: Cancelable Operations**
 
 ```go
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"time"
+)
 
-type Animal interface {
-	Speak() string
-}
+// DataFetcher fetches data from various sources
+type DataFetcher struct{}
 
-type Dog struct{}
-func (d Dog) Speak() string { return "Woof" }
+// FetchData gets data from a slow source with cancellation support
+func (df *DataFetcher) FetchData(ctx context.Context, query string) ([]string, error) {
+	results := make(chan []string, 1)
+	errors := make(chan error, 1)
 
-type Cat struct{}
-func (c Cat) Speak() string { return "Meow" }
+	go func() {
+		// Simulate work
+		time.Sleep(2 * time.Second)
 
-func AnimalFactory(animalType string) Animal {
-	switch animalType {
-	case "dog":
-		return Dog{}
-	case "cat":
-		return Cat{}
-	default:
-		return nil
+		// Check if canceled before returning
+		select {
+		case <-ctx.Done():
+			errors <- ctx.Err()
+			return
+		default:
+			// Work completed successfully
+			results <- []string{"result1", "result2", query}
+		}
+	}()
+
+	// Wait for result or cancellation
+	select {
+	case result := <-results:
+		return result, nil
+	case err := <-errors:
+		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
-
-func main() {
-	animal := AnimalFactory("dog")
-	fmt.Println(animal.Speak()) // Output: Woof
-}
 ```
 
----
-
-## **Exercise 3: Builder Pattern**
-
-**Scenario**: Build a Pizza object step-by-step, where each step adds an ingredient.
-
-**Code Solution**:
+**Usage**:
 
 ```go
-package main
-
-import "fmt"
-
-type Pizza struct {
-	Crust      string
-	Toppings   []string
-	CheeseType string
-}
-
-type PizzaBuilder struct {
-	pizza Pizza
-}
-
-func (b *PizzaBuilder) SetCrust(crust string) *PizzaBuilder {
-	b.pizza.Crust = crust
-	return b
-}
-
-func (b *PizzaBuilder) AddTopping(topping string) *PizzaBuilder {
-	b.pizza.Toppings = append(b.pizza.Toppings, topping)
-	return b
-}
-
-func (b *PizzaBuilder) SetCheese(cheese string) *PizzaBuilder {
-	b.pizza.CheeseType = cheese
-	return b
-}
-
-func (b *PizzaBuilder) Build() Pizza {
-	return b.pizza
-}
-
 func main() {
-	pizza := (&PizzaBuilder{}).SetCrust("Thin").AddTopping("Pepperoni").SetCheese("Mozzarella").Build()
-	fmt.Printf("Pizza: %+v
-", pizza) // Output: Pizza: {Crust:Thin Toppings:[Pepperoni] CheeseType:Mozzarella}
-}
-```
+	fetcher := &DataFetcher{}
 
----
+	// Create a context with a timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 
-## **Exercise 4: Adapter Pattern**
-
-**Scenario**: Adapt an old charger to work with a new fast-charger interface.
-
-**Code Solution**:
-
-```go
-package main
-
-import "fmt"
-
-type OldCharger struct{}
-func (o OldCharger) Charge() { fmt.Println("Charging with old charger") }
-
-type NewCharger interface {
-	FastCharge()
-}
-
-type OldToNewAdapter struct {
-	OldCharger
-}
-
-func (a OldToNewAdapter) FastCharge() {
-	fmt.Println("Adapting to fast charge...")
-	a.Charge()
-}
-
-func main() {
-	adapter := OldToNewAdapter{}
-	adapter.FastCharge()
-}
-```
-
----
-
-## **Exercise 5: Observer Pattern**
-
-**Scenario**: Build a weather station that notifies observers when the temperature changes.
-
-**Code Solution**:
-
-```go
-package main
-
-import "fmt"
-
-type Observer interface {
-	Update(temperature float64)
-}
-
-type WeatherStation struct {
-	observers []Observer
-	temperature float64
-}
-
-func (w *WeatherStation) AddObserver(o Observer) {
-	w.observers = append(w.observers, o)
-}
-
-func (w *WeatherStation) SetTemperature(temp float64) {
-	w.temperature = temp
-	for _, observer := range w.observers {
-		observer.Update(temp)
+	// Try to fetch data
+	results, err := fetcher.FetchData(ctx, "query")
+	if err != nil {
+		fmt.Printf("Error: %v\n", err) // Will print: Error: context deadline exceeded
+		return
 	}
-}
 
-type NewsChannel struct {
-	Name string
-}
-
-func (n NewsChannel) Update(temp float64) {
-	fmt.Printf("%s: Temperature updated to %.2f
-", n.Name, temp)
-}
-
-func main() {
-	station := &WeatherStation{}
-	channel1 := NewsChannel{Name: "Channel 1"}
-	channel2 := NewsChannel{Name: "Channel 2"}
-
-	station.AddObserver(channel1)
-	station.AddObserver(channel2)
-
-	station.SetTemperature(25.0)
+	fmt.Printf("Results: %v\n", results)
 }
 ```
 
----
+**When to Use**:
 
-## **Exercise 6: Strategy Pattern**
+- Managing request timeouts
+- Implementing cancelable operations
+- Propagating deadlines through call chains
+- Passing request-scoped values
 
-**Scenario**: Implement a payment system where users can choose between `CreditCard` and `PayPal`.
+## **23.12. Summary and Best Practices**
 
-**Code Solution**:
+### **Key Takeaways**
 
-```go
-package main
+1. **Adapt patterns to Go's idioms**: Traditional design patterns often need adaptation to fit Go's paradigms.
 
-import "fmt"
+2. **Interfaces are powerful**: Go's implicit interfaces enable flexible, decoupled designs.
 
-type PaymentStrategy interface {
-	Pay(amount float64)
-}
+3. **Composition over inheritance**: Use embedding and composition to build complex structures.
 
-type CreditCard struct{}
-func (c CreditCard) Pay(amount float64) { fmt.Printf("Paid %.2f using Credit Card
-", amount) }
+4. **Keep it simple**: The best Go code often uses the simplest approach that works, not necessarily a formal pattern.
 
-type PayPal struct{}
-func (p PayPal) Pay(amount float64) { fmt.Printf("Paid %.2f using PayPal
-", amount) }
+5. **Test-driven development**: Design patterns should support, not hinder, testability.
 
-type PaymentContext struct {
-	strategy PaymentStrategy
-}
+### **Best Practices for Design Patterns in Go**
 
-func (c *PaymentContext) SetStrategy(strategy PaymentStrategy) {
-	c.strategy = strategy
-}
+1. **Start simple**: Begin with straightforward implementations before applying patterns.
 
-func (c PaymentContext) Pay(amount float64) {
-	c.strategy.Pay(amount)
-}
+2. **Use interfaces wisely**: Define interfaces at the point of use, keep them small and focused.
 
-func main() {
-	context := &PaymentContext{}
+3. **Avoid over-engineering**: Apply patterns only when they clearly improve your design.
 
-	context.SetStrategy(CreditCard{})
-	context.Pay(50.0)
+4. **Consider maintainability**: Patterns should make your code more maintainable, not less.
 
-	context.SetStrategy(PayPal{})
-	context.Pay(75.0)
-}
-```
+5. **Document pattern usage**: Comment when you're applying a specific pattern to aid understanding.
 
----
+### **Pattern Selection Guide**
 
-## **Exercise 7: Decorator Pattern**
+| When You Need To...                         | Consider Using...             |
+| ------------------------------------------- | ----------------------------- |
+| Create objects based on conditions          | Factory Method                |
+| Ensure exactly one instance exists          | Singleton                     |
+| Build complex objects step by step          | Builder or Functional Options |
+| Make incompatible interfaces work together  | Adapter                       |
+| Add behaviors dynamically                   | Decorator                     |
+| Define a family of algorithms               | Strategy                      |
+| Execute operations in a particular sequence | Chain of Responsibility       |
+| Represent operations as objects             | Command                       |
+| Manage object state transitions             | State                         |
+| Add indirection to object access            | Proxy                         |
 
-**Scenario**: Create a coffee shop menu where additional items like milk and sugar can be added dynamically.
+## **23.13. Further Resources**
 
-**Code Solution**:
+1. **Books**:
 
-```go
-package main
+   - "Go Design Patterns" by Mario Castro Contreras
+   - "Hands-On Software Architecture with Golang" by Jyotiswarup Raiturkar
 
-import "fmt"
+2. **Online Resources**:
 
-type Coffee interface {
-	Cost() float64
-	Description() string
-}
+   - [Go Patterns](https://github.com/tmrts/go-patterns)
+   - [Effective Go](https://golang.org/doc/effective_go)
+   - [Go by Example](https://gobyexample.com/)
 
-type BasicCoffee struct{}
-func (b BasicCoffee) Cost() float64 { return 5.0 }
-func (b BasicCoffee) Description() string { return "Basic Coffee" }
+3. **Standard Library Examples**:
+   - context package (Context pattern)
+   - net/http (Middleware/Decorator pattern)
+   - database/sql (Proxy pattern)
 
-type MilkDecorator struct {
-	Coffee Coffee
-}
-func (m MilkDecorator) Cost() float64 { return m.Coffee.Cost() + 1.5 }
-func (m MilkDecorator) Description() string { return m.Coffee.Description() + " + Milk" }
+## **23.14. Exercises**
 
-type SugarDecorator struct {
-	Coffee Coffee
-}
-func (s SugarDecorator) Cost() float64 { return s.Coffee.Cost() + 0.5 }
-func (s SugarDecorator) Description() string { return s.Coffee.Description() + " + Sugar" }
+To solidify your understanding, try implementing the following patterns on your own:
 
-func main() {
-	coffee := BasicCoffee{}
-	coffee = MilkDecorator{Coffee: coffee}
-	coffee = SugarDecorator{Coffee: coffee}
-	fmt.Printf("%s: $%.2f
-", coffee.Description(), coffee.Cost())
-}
-```
+// ... existing exercises ...
 
----
-
-**Note:** For brevity, this file contains 7 exercises with solutions. Full solutions for all 15 exercises (including Command, Proxy, State, and real-world scenarios) will follow the same pattern and are built upon these principles.
-
----
-
-### **How to Proceed**
-
-- Test each code example.
-- Modify and extend these solutions to fit real-world applications.
+In the next chapter, we'll explore performance optimization techniques for Go applications, building on these design patterns to create not just well-designed code, but efficient code as well.

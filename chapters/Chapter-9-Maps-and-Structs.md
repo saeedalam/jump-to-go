@@ -1,18 +1,26 @@
-# **Chapter 9: Maps and Structs**
+# **Chapter 9: Maps in Go**
 
----
+Maps are one of Go's most versatile and powerful built-in data structures. They provide an efficient way to store and retrieve key-value pairs, making them essential for a wide range of programming tasks from simple lookups to complex data transformations.
 
-## **9.1. Maps**
+In this chapter, we'll explore maps in depth—from basic operations to advanced techniques—and learn how to leverage their capabilities to write clean, efficient Go code.
 
-### **What are Maps?**
+## **9.1 Map Fundamentals**
 
-A **map** in Go is an unordered collection of key-value pairs. Each key in the map is unique, and it maps to a value. Maps are useful when you need to quickly look up data or associate one piece of data with another. Unlike arrays or slices, maps don't maintain any order of elements, which makes them ideal for fast lookups, additions, and deletions.
+### **9.1.1 What is a Map?**
 
-Maps are reference types, which means they are passed by reference. If you pass a map to a function, the changes you make inside that function will affect the original map.
+A map is an unordered collection of key-value pairs where each key is unique. Maps provide fast lookups, insertions, and deletions based on keys. In Go, maps are implemented as hash tables, offering average constant-time complexity for these operations.
 
-### **9.1.1 Declaring and Initializing Maps**
+Key characteristics of Go maps:
 
-You can declare a map in Go using the `map` keyword followed by the key type and value type. Here's how you declare and initialize a map with some data:
+- **Unordered**: Unlike arrays and slices, maps don't maintain insertion order
+- **Dynamic**: Maps grow automatically as you add more key-value pairs
+- **Reference Type**: Maps are passed by reference, not by value
+- **Type Requirements**: Keys must be comparable (support the `==` and `!=` operators)
+- **Zero Value**: The zero value of a map is `nil`
+
+### **9.1.2 Creating Maps**
+
+There are several ways to create maps in Go:
 
 ```go
 package main
@@ -20,31 +28,41 @@ package main
 import "fmt"
 
 func main() {
-    // Declare and initialize a map
-    fruits := map[string]string{
-        "a": "Apple",
-        "b": "Banana",
-        "c": "Cherry",
+    // Method 1: Using make
+    scores := make(map[string]int)
+
+    // Method 2: Map literal (empty)
+    ages := map[string]int{}
+
+    // Method 3: Map literal with initial data
+    population := map[string]int{
+        "New York": 8804190,
+        "Los Angeles": 3898747,
+        "Chicago": 2746388,
     }
 
-    // Access and print values
-    fmt.Println("Map:", fruits)
-    fmt.Println("Value for key 'a':", fruits["a"])
+    fmt.Println("Scores:", scores)           // map[]
+    fmt.Println("Ages:", ages)               // map[]
+    fmt.Println("Population:", population)   // map[Chicago:2746388 Los Angeles:3898747 New York:8804190]
 }
 ```
 
-**Output:**
+Important differences between these methods:
 
+1. `make(map[KeyType]ValueType)` creates an initialized, empty map
+2. `map[KeyType]ValueType{}` also creates an initialized, empty map
+3. A `nil` map (declared but not initialized) cannot store key-value pairs
+
+```go
+var nilMap map[string]int        // Nil map
+nilMap["key"] = 10               // Runtime panic: assignment to entry in nil map
 ```
-Map: map[a:Apple b:Banana c:Cherry]
-Value for key 'a': Apple
-```
 
----
+### **9.1.3 Basic Map Operations**
 
-### **9.1.2 Adding, Updating, and Deleting Elements**
+Let's explore the fundamental operations you can perform with maps:
 
-Maps in Go are dynamic, meaning you can add, update, or delete elements at any time. Here's an example demonstrating these operations:
+**Inserting and Updating Key-Value Pairs**
 
 ```go
 package main
@@ -52,32 +70,21 @@ package main
 import "fmt"
 
 func main() {
-    fruits := map[string]string{"a": "Apple", "b": "Banana"}
+    users := make(map[int]string)
 
-    // Adding a new key-value pair
-    fruits["c"] = "Cherry"
+    // Adding new key-value pairs
+    users[1] = "Alice"
+    users[2] = "Bob"
 
-    // Updating an existing key-value pair
-    fruits["b"] = "Blueberry"
+    fmt.Println("Users:", users)  // map[1:Alice 2:Bob]
 
-    // Deleting a key-value pair
-    delete(fruits, "a")
-
-    fmt.Println("Updated Map:", fruits)
+    // Updating an existing value
+    users[1] = "Alicia"
+    fmt.Println("Updated users:", users)  // map[1:Alicia 2:Bob]
 }
 ```
 
-**Output:**
-
-```
-Updated Map: map[b:Blueberry c:Cherry]
-```
-
----
-
-### **9.1.3 Checking if a Key Exists**
-
-You can check whether a key exists in a map by using the second return value when accessing a map element. If the key exists, the second value will be `true`; otherwise, it will be `false`.
+**Retrieving Values**
 
 ```go
 package main
@@ -85,28 +92,54 @@ package main
 import "fmt"
 
 func main() {
-    fruits := map[string]string{"a": "Apple", "b": "Banana"}
+    colors := map[string]string{
+        "red": "#FF0000",
+        "green": "#00FF00",
+        "blue": "#0000FF",
+    }
 
-    // Check if a key exists
-    if value, exists := fruits["c"]; exists {
-        fmt.Println("Value:", value)
+    // Simple retrieval
+    redHex := colors["red"]
+    fmt.Println("Red hex code:", redHex)  // #FF0000
+
+    // Retrieving a non-existent key returns the zero value
+    yellowHex := colors["yellow"]
+    fmt.Println("Yellow hex code:", yellowHex)  // Empty string (zero value for string)
+}
+```
+
+**Checking for Key Existence**
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    users := map[string]int{
+        "alice": 25,
+        "bob": 30,
+    }
+
+    // The "comma ok" idiom
+    age, exists := users["alice"]
+    if exists {
+        fmt.Printf("Alice is %d years old\n", age)
     } else {
-        fmt.Println("Key 'c' does not exist")
+        fmt.Println("Alice not found")
+    }
+
+    // Checking a non-existent key
+    age, exists = users["charlie"]
+    if exists {
+        fmt.Printf("Charlie is %d years old\n", age)
+    } else {
+        fmt.Println("Charlie not found")
     }
 }
 ```
 
-**Output:**
-
-```
-Key 'c' does not exist
-```
-
----
-
-### **9.1.4 Iterating Over a Map**
-
-You can use a `for` loop with the `range` keyword to iterate over the key-value pairs in a map. Here's an example:
+**Deleting Key-Value Pairs**
 
 ```go
 package main
@@ -114,27 +147,95 @@ package main
 import "fmt"
 
 func main() {
-    fruits := map[string]string{"a": "Apple", "b": "Banana", "c": "Cherry"}
+    inventory := map[string]int{
+        "apple": 15,
+        "banana": 8,
+        "orange": 12,
+    }
 
-    for key, value := range fruits {
-        fmt.Printf("Key: %s, Value: %s\n", key, value)
+    fmt.Println("Initial inventory:", inventory)
+
+    // Delete a key-value pair
+    delete(inventory, "banana")
+    fmt.Println("After deletion:", inventory)
+
+    // Deleting a non-existent key is a no-op (doesn't cause errors)
+    delete(inventory, "grape")
+    fmt.Println("After deleting non-existent key:", inventory)
+}
+```
+
+### **9.1.4 Iterating Over Maps**
+
+You can iterate through all key-value pairs in a map using the `range` keyword:
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    capitals := map[string]string{
+        "France": "Paris",
+        "Japan": "Tokyo",
+        "India": "New Delhi",
+        "Brazil": "Brasília",
+    }
+
+    // Iterating over keys and values
+    fmt.Println("Countries and their capitals:")
+    for country, capital := range capitals {
+        fmt.Printf("%s: %s\n", country, capital)
+    }
+
+    // Iterating over just the keys
+    fmt.Println("\nList of countries:")
+    for country := range capitals {
+        fmt.Println(country)
     }
 }
 ```
 
-**Output:**
+Note: The iteration order of a map is not guaranteed. Each iteration might produce a different order of keys and values. If you need a specific order, you should sort the keys separately.
 
+## **9.2 Advanced Map Techniques**
+
+### **9.2.1 Maps with Complex Types**
+
+Maps can have complex types for both keys and values:
+
+**Structs as Map Values**
+
+```go
+package main
+
+import "fmt"
+
+type Employee struct {
+    Name  string
+    Title string
+    Salary float64
+}
+
+func main() {
+    employees := map[string]Employee{
+        "E001": {Name: "Alice Johnson", Title: "Software Engineer", Salary: 85000},
+        "E002": {Name: "Bob Smith", Title: "Product Manager", Salary: 95000},
+    }
+
+    // Accessing a struct field in a map value
+    fmt.Printf("%s is a %s\n", employees["E001"].Name, employees["E001"].Title)
+
+    // Updating a struct field
+    employee := employees["E002"]
+    employee.Salary += 5000
+    employees["E002"] = employee  // Map values are not addressable directly
+
+    fmt.Printf("%s's new salary: $%.2f\n", employees["E002"].Name, employees["E002"].Salary)
+}
 ```
-Key: a, Value: Apple
-Key: b, Value: Banana
-Key: c, Value: Cherry
-```
 
----
-
-### **9.1.5 Handling Maps with Zero Values**
-
-In Go, when you try to access a map with a key that doesn't exist, it returns the zero value for the map's value type. This is useful, but you should be careful to check if the key actually exists.
+**Maps as Values in Other Maps (Nested Maps)**
 
 ```go
 package main
@@ -142,130 +243,41 @@ package main
 import "fmt"
 
 func main() {
-    fruits := map[string]string{"a": "Apple", "b": "Banana"}
-
-    // Accessing a non-existent key will return the zero value for string, which is an empty string.
-    fmt.Println(fruits["c"]) // Output: ""
-}
-```
-
----
-
-## **9.2. Structs**
-
-### **What are Structs?**
-
-A **struct** is a composite data type in Go that groups together variables (fields) under a single name. Each field in a struct can have a different type. Structs are commonly used to define complex data models that represent real-world entities. Structs are the foundation of custom types in Go and are critical for building robust applications.
-
----
-
-### **9.2.1 Declaring and Initializing Structs**
-
-```go
-package main
-
-import "fmt"
-
-// Define a struct
-type Person struct {
-    Name string
-    Age  int
-}
-
-func main() {
-    // Initialize a struct
-    person := Person{Name: "John", Age: 30}
-
-    fmt.Println("Person Struct:", person)
-    fmt.Println("Name:", person.Name)
-    fmt.Println("Age:", person.Age)
-}
-```
-
-**Output:**
-
-```
-Person Struct: {John 30}
-Name: John
-Age: 30
-```
-
----
-
-### **9.2.2 Using Pointers with Structs**
-
-```go
-package main
-
-import "fmt"
-
-type Person struct {
-    Name string
-    Age  int
-}
-
-func main() {
-    person := &Person{Name: "Alice", Age: 25}
-
-    // Modify fields using pointers
-    person.Age = 26
-
-    fmt.Println("Updated Person Struct:", person)
-}
-```
-
-**Output:**
-
-```
-Updated Person Struct: &{Alice 26}
-```
-
----
-
-### **9.2.3 Structs with Nested Fields**
-
-```go
-package main
-
-import "fmt"
-
-// Define nested structs
-type Address struct {
-    City  string
-    State string
-}
-
-type Person struct {
-    Name    string
-    Age     int
-    Address Address
-}
-
-func main() {
-    person := Person{
-        Name: "Emily",
-        Age:  35,
-        Address: Address{
-            City:  "Los Angeles",
-            State: "CA",
+    // Nested map for a university course catalog
+    courseCatalog := map[string]map[string]string{
+        "CS": {
+            "CS101": "Introduction to Programming",
+            "CS202": "Data Structures",
+            "CS303": "Algorithms",
+        },
+        "MATH": {
+            "MATH101": "Calculus I",
+            "MATH202": "Linear Algebra",
         },
     }
 
-    fmt.Println("Person Struct:", person)
-    fmt.Println("City:", person.Address.City)
+    // Accessing values in nested maps
+    fmt.Println("CS202:", courseCatalog["CS"]["CS202"])
+
+    // Adding a new department
+    courseCatalog["PHYS"] = map[string]string{
+        "PHYS101": "Physics I",
+    }
+
+    // Adding a new course to an existing department
+    courseCatalog["MATH"]["MATH303"] = "Differential Equations"
+
+    // Printing the entire catalog
+    for dept, courses := range courseCatalog {
+        fmt.Printf("\nDepartment: %s\n", dept)
+        for code, title := range courses {
+            fmt.Printf("  %s: %s\n", code, title)
+        }
+    }
 }
 ```
 
-**Output:**
-
-```
-Person Struct: {Emily 35 {Los Angeles CA}}
-City: Los Angeles
-```
-
----
-
-### **9.2.4 Anonymous Structs**
+**Slices as Map Values**
 
 ```go
 package main
@@ -273,170 +285,156 @@ package main
 import "fmt"
 
 func main() {
-    // Create and initialize an anonymous struct
-    person := struct {
-        Name string
-        Age  int
-    }{
-        Name: "Mia",
-        Age:  29,
+    // Map with slices as values
+    studentScores := map[string][]int{
+        "Alice": {92, 87, 95},
+        "Bob":   {85, 79, 91},
     }
 
-    fmt.Println("Anonymous Struct:", person)
+    // Adding a new student
+    studentScores["Charlie"] = []int{88, 92}
+
+    // Adding a score to an existing student
+    studentScores["Alice"] = append(studentScores["Alice"], 90)
+
+    // Calculating averages
+    fmt.Println("Average scores:")
+    for student, scores := range studentScores {
+        sum := 0
+        for _, score := range scores {
+            sum += score
+        }
+        avg := float64(sum) / float64(len(scores))
+        fmt.Printf("%s: %.2f\n", student, avg)
+    }
 }
 ```
 
-**Output:**
+### **9.2.2 Maps with Function Values**
 
-```
-Anonymous Struct: {Mia 29}
-```
-
----
-
-### **9.2.5 Methods on Structs**
-
-In Go, methods are functions with a special receiver argument. Methods allow you to associate specific functionality or behavior with a type, like structs. This makes your code more modular and reusable.
-
-Struct methods are particularly useful because they enable you to operate on the struct's data directly, creating a clean way to encapsulate logic.
-
----
-
-## **Example: Greeting a Person**
-
-Here’s an example demonstrating how to define and use a method on a struct:
+Maps can also store functions as values, creating a simple dispatch table:
 
 ```go
 package main
 
-import "fmt"
-
-// Define the struct
-type Person struct {
-    Name string
-    Age  int
-}
-
-// Method to greet a person
-func (p Person) Greet() {
-    fmt.Println("Hello, my name is", p.Name)
-}
+import (
+    "fmt"
+    "math"
+)
 
 func main() {
-    person := Person{Name: "John", Age: 30}
-    person.Greet()
+    // Map of mathematical operations
+    operations := map[string]func(float64, float64) float64{
+        "add":      func(a, b float64) float64 { return a + b },
+        "subtract": func(a, b float64) float64 { return a - b },
+        "multiply": func(a, b float64) float64 { return a * b },
+        "divide":   func(a, b float64) float64 { return a / b },
+        "power":    math.Pow,
+    }
+
+    // Using the function map
+    a, b := 10.0, 2.0
+
+    for op, fn := range operations {
+        result := fn(a, b)
+        fmt.Printf("%v %s %v = %v\n", a, op, b, result)
+    }
 }
 ```
 
----
+### **9.2.3 Map Concurrency Considerations**
 
-## **Explanation**
-
-### **1. Struct Definition**
-
-```go
-type Person struct {
-    Name string
-    Age  int
-}
-```
-
-- The `Person` struct represents a person with a `Name` and `Age`.
-
-### **2. Defining a Method**
-
-```go
-func (p Person) Greet() {
-    fmt.Println("Hello, my name is", p.Name)
-}
-```
-
-- The `Greet` method is tied to the `Person` struct through the receiver `(p Person)`.
-- The receiver allows the method to access the struct's fields (`Name` in this case).
-
-### **3. Using the Method**
-
-```go
-person := Person{Name: "John", Age: 30}
-person.Greet()
-```
-
-- A `Person` instance is created with the name "John".
-- The `Greet` method is called on this instance, printing a personalized greeting.
-
----
-
-## **Output**
-
-When you run the code, you will see the following output:
-
-```
-Hello, my name is John
-```
-
----
-
-## **Why Use Methods on Structs?**
-
-- **Encapsulation:** Methods group related data and behavior together.
-- **Clarity:** Improves code readability by associating actions with the relevant type.
-- **Reusability:** Methods can be reused across multiple instances of the struct.
-
----
-
-## **9.3. Practical Example: Combining Maps and Structs**
+Maps in Go are not safe for concurrent use. If multiple goroutines access a map simultaneously and at least one of them is writing, you must implement synchronization:
 
 ```go
 package main
 
-import "fmt"
-
-// Define a struct
-type Student struct {
-    Name  string
-    Grade int
-}
+import (
+    "fmt"
+    "sync"
+)
 
 func main() {
-    // Map with struct values
-    students := map[string]Student{
-        "101": {Name: "Alice", Grade: 90},
-        "102": {Name: "Bob", Grade: 85},
+    // A thread-safe map using a mutex
+    type ConcurrentMap struct {
+        mu sync.RWMutex
+        data map[string]int
     }
 
-    // Access and print student details
-    for id, student := range students {
-        fmt.Printf("ID: %s, Name: %s, Grade: %d\n", id, student.Name, student.Grade)
+    counter := ConcurrentMap{
+        data: make(map[string]int),
     }
+
+    // Thread-safe methods
+    increment := func(key string) {
+        counter.mu.Lock()
+        defer counter.mu.Unlock()
+        counter.data[key]++
+    }
+
+    getValue := func(key string) int {
+        counter.mu.RLock()
+        defer counter.mu.RUnlock()
+        return counter.data[key]
+    }
+
+    // Increment a counter
+    increment("visits")
+    increment("visits")
+    increment("logins")
+
+    fmt.Println("Visits:", getValue("visits"))
+    fmt.Println("Logins:", getValue("logins"))
 }
 ```
 
-**Output:**
+For Go 1.9 and later, you can also use the `sync.Map` type, which is optimized for specific use cases:
 
+```go
+package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+func main() {
+    var counter sync.Map
+
+    // Store values
+    counter.Store("visits", 0)
+
+    // Increment a counter
+    increment := func(key string) {
+        var count int
+        value, ok := counter.Load(key)
+        if ok {
+            count = value.(int)
+        }
+        counter.Store(key, count+1)
+    }
+
+    // Increment the counter
+    increment("visits")
+    increment("visits")
+    increment("logins")
+
+    // Retrieve values
+    visits, _ := counter.Load("visits")
+    logins, _ := counter.Load("logins")
+
+    fmt.Println("Visits:", visits)
+    fmt.Println("Logins:", logins)
+}
 ```
-ID: 101, Name: Alice, Grade: 90
-ID: 102, Name: Bob, Grade: 85
-```
 
----
+## **9.3 Practical Map Applications**
 
-## **9.4. Summary**
+Let's explore some practical applications of maps in real-world programming scenarios.
 
-In this chapter, you learned:
+### **9.3.1 Word Frequency Counter**
 
-- How to use **maps** for efficient key-value storage and manipulation.
-- How to define and work with **structs** to model complex data, including advanced usage such as pointers and methods.
-- Practical applications of combining maps and structs to represent real-world scenarios.
-
-# **9.5. Exercises**
-
----
-
-## **Exercise 1: Counting Word Frequencies**
-
-**Problem**: Write a function that takes a string and returns a map containing the frequency of each word.
-
-### **Code**:
+Maps are perfect for counting occurrences of items:
 
 ```go
 package main
@@ -447,354 +445,87 @@ import (
 )
 
 func wordFrequency(text string) map[string]int {
-    words := strings.Fields(text)
-    freq := make(map[string]int)
+    // Convert to lowercase and split into words
+    words := strings.Fields(strings.ToLower(text))
+
+    // Create a map to store word counts
+    frequency := make(map[string]int)
+
+    // Count word occurrences
     for _, word := range words {
-        freq[word]++
-    }
-    return freq
-}
-
-func main() {
-    text := "hello world hello Go"
-    fmt.Println("Word Frequencies:", wordFrequency(text))
-}
-```
-
-### **Explanation**:
-
-1. The `strings.Fields` function splits the input text into words.
-2. A map is created to store word frequencies, with each word as a key and its count as the value.
-3. Each word in the text is iterated over, and the count is incremented in the map.
-
-### **Output**:
-
-```
-Word Frequencies: map[Go:1 hello:2 world:1]
-```
-
----
-
-## **Exercise 2: Updating a Map**
-
-**Problem**: Create a map of student grades, add new entries, update existing grades, and delete a student.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-func main() {
-    grades := map[string]int{"Alice": 85, "Bob": 90}
-
-    // Add and update entries
-    grades["Charlie"] = 75
-    grades["Alice"] = 95
-
-    // Delete an entry
-    delete(grades, "Bob")
-
-    fmt.Println("Updated Grades:", grades)
-}
-```
-
-### **Explanation**:
-
-1. A map of grades is initialized with two entries.
-2. A new entry for "Charlie" is added, and "Alice's" grade is updated.
-3. The `delete` function removes "Bob" from the map.
-
-### **Output**:
-
-```
-Updated Grades: map[Alice:95 Charlie:75]
-```
-
----
-
-## **Exercise 3: Check Key Existence**
-
-**Problem**: Write a function to check if a key exists in a map.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-func keyExists(m map[string]int, key string) bool {
-    _, exists := m[key]
-    return exists
-}
-
-func main() {
-    scores := map[string]int{"Alice": 100, "Bob": 85}
-    fmt.Println("Key 'Alice' exists:", keyExists(scores, "Alice"))
-    fmt.Println("Key 'Charlie' exists:", keyExists(scores, "Charlie"))
-}
-```
-
-### **Explanation**:
-
-1. The `keyExists` function uses the second return value of map access to determine key existence.
-2. If the key exists, `exists` is `true`; otherwise, it’s `false`.
-
-### **Output**:
-
-```
-Key 'Alice' exists: true
-Key 'Charlie' exists: false
-```
-
----
-
-## **Exercise 4: Struct Initialization and Access**
-
-**Problem**: Create a `Book` struct with fields `Title`, `Author`, and `Year`, and initialize and print its values.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-type Book struct {
-    Title  string
-    Author string
-    Year   int
-}
-
-func main() {
-    book := Book{Title: "1984", Author: "George Orwell", Year: 1949}
-    fmt.Println("Book Details:", book)
-}
-```
-
-### **Explanation**:
-
-1. A struct `Book` is defined with three fields.
-2. An instance of `Book` is created with specific values and printed.
-
-### **Output**:
-
-```
-Book Details: {1984 George Orwell 1949}
-```
-
----
-
-## **Exercise 5: Nested Structs**
-
-**Problem**: Create a `Car` struct with a nested `Engine` struct, and initialize and print its fields.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-type Engine struct {
-    Horsepower int
-    Type       string
-}
-
-type Car struct {
-    Brand  string
-    Model  string
-    Engine Engine
-}
-
-func main() {
-    car := Car{
-        Brand: "Tesla",
-        Model: "Model S",
-        Engine: Engine{
-            Horsepower: 1020,
-            Type:       "Electric",
-        },
+        // Remove punctuation (simplified approach)
+        word = strings.Trim(word, ".,!?;:()")
+        if word != "" {
+            frequency[word]++
+        }
     }
 
-    fmt.Println("Car Details:", car)
-}
-```
-
-### **Explanation**:
-
-1. The `Car` struct contains an `Engine` struct as a nested field.
-2. Both structs are initialized with values and printed.
-
-### **Output**:
-
-```
-Car Details: {Tesla Model S {1020 Electric}}
-```
-
----
-
-## **Exercise 6: Map of Structs**
-
-**Problem**: Create a map of employee IDs to `Employee` structs and iterate through the map.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-type Employee struct {
-    Name     string
-    Position string
+    return frequency
 }
 
 func main() {
-    employees := map[string]Employee{
-        "E001": {Name: "Alice", Position: "Manager"},
-        "E002": {Name: "Bob", Position: "Developer"},
-    }
+    text := "Go is an open source programming language. Go is expressive, concise, clean, and efficient."
 
-    for id, emp := range employees {
-        fmt.Printf("ID: %s, Name: %s, Position: %s\n", id, emp.Name, emp.Position)
+    freq := wordFrequency(text)
+
+    // Print in alphabetical order
+    fmt.Println("Word frequencies:")
+    for word, count := range freq {
+        fmt.Printf("%-12s: %d\n", word, count)
     }
 }
 ```
 
-### **Explanation**:
+### **9.3.2 Caching and Memoization**
 
-1. A map of employee IDs to `Employee` structs is created.
-2. A `for` loop iterates over the map to print each entry.
-
-### **Output**:
-
-```
-ID: E001, Name: Alice, Position: Manager
-ID: E002, Name: Bob, Position: Developer
-```
-
----
-
-## **Exercise 7: Anonymous Structs in Maps**
-
-**Problem**: Create a map using anonymous structs as values.
-
-### **Code**:
+Maps are excellent for implementing caching mechanisms:
 
 ```go
 package main
 
-import "fmt"
+import (
+    "fmt"
+    "time"
+)
 
-func main() {
-    products := map[string]struct {
-        Price    float64
-        Quantity int
-    }{
-        "Laptop": {Price: 999.99, Quantity: 10},
-        "Phone":  {Price: 599.99, Quantity: 20},
+// Expensive calculation function
+func fibonacci(n int, cache map[int]int) int {
+    // Check if result is already cached
+    if val, found := cache[n]; found {
+        fmt.Printf("Cache hit for fib(%d)\n", n)
+        return val
     }
 
-    for name, details := range products {
-        fmt.Printf("Product: %s, Price: %.2f, Quantity: %d\n", name, details.Price, details.Quantity)
+    fmt.Printf("Computing fib(%d)\n", n)
+
+    // Base cases
+    if n <= 1 {
+        cache[n] = n
+        return n
     }
-}
-```
 
-### **Explanation**:
-
-1. Anonymous structs are used as values in a map to store product details.
-2. The map is iterated over to print product information.
-
-### **Output**:
-
-```
-Product: Laptop, Price: 999.99, Quantity: 10
-Product: Phone, Price: 599.99, Quantity: 20
-```
-
----
-
-## **Exercise 8: Pointer to Struct**
-
-**Problem**: Use a pointer to a struct to modify its fields.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-type Person struct {
-    Name string
-    Age  int
+    // Recursive calculation with cache
+    result := fibonacci(n-1, cache) + fibonacci(n-2, cache)
+    cache[n] = result
+    return result
 }
 
 func main() {
-    person := &Person{Name: "Alice", Age: 25}
-    person.Age = 26
-    fmt.Println("Updated Person:", *person)
+    cache := make(map[int]int)
+
+    start := time.Now()
+    result := fibonacci(30, cache)
+    duration := time.Since(start)
+
+    fmt.Printf("fibonacci(30) = %d\n", result)
+    fmt.Printf("Calculation took %v\n", duration)
+    fmt.Printf("Cache contains %d entries\n", len(cache))
 }
 ```
 
-### **Explanation**:
+### **9.3.3 Grouping and Indexing Data**
 
-1. A pointer to the `Person` struct is created and used to modify the `Age` field.
-2. The updated struct is printed.
-
-### **Output**:
-
-```
-Updated Person: {Alice 26}
-```
-
----
-
-## **Exercise 9: Adding and Removing Map Entries**
-
-**Problem**: Write a function to add and remove entries in a map.
-
-### **Code**:
-
-```go
-package main
-
-import "fmt"
-
-func modifyMap(m map[string]int) {
-    m["new"] = 100
-    delete(m, "old")
-}
-
-func main() {
-    data := map[string]int{"old": 50, "existing": 75}
-    modifyMap(data)
-    fmt.Println("Modified Map:", data)
-}
-```
-
-### **Explanation**:
-
-1. The `modifyMap` function adds a new key-value pair and deletes an existing one.
-2. The updated map is printed.
-
-### **Output**:
-
-```
-Modified Map: map[existing:75 new:100]
-```
-
----
-
-## **Exercise 10: Combining Maps and Structs**
-
-**Problem**: Create a program that uses maps to store and retrieve `Student` struct data.
-
-### **Code**:
+Maps can be used to organize and index data for quick retrieval:
 
 ```go
 package main
@@ -802,72 +533,322 @@ package main
 import "fmt"
 
 type Student struct {
+    ID    string
     Name  string
     Grade int
+    Class string
 }
 
 func main() {
-    students := map[string]Student{
-        "S001": {Name: "Alice", Grade: 90},
-        "S002": {Name: "Bob", Grade: 85},
+    students := []Student{
+        {ID: "S001", Name: "Alice", Grade: 95, Class: "Mathematics"},
+        {ID: "S002", Name: "Bob", Grade: 88, Class: "Physics"},
+        {ID: "S003", Name: "Charlie", Grade: 92, Class: "Mathematics"},
+        {ID: "S004", Name: "Diana", Grade: 85, Class: "Chemistry"},
+        {ID: "S005", Name: "Eva", Grade: 91, Class: "Physics"},
     }
 
-    for id, student := range students {
-        fmt.Printf("ID: %s, Name: %s, Grade: %d\n", id, student.Name, student.Grade)
+    // Index students by ID for quick lookup
+    studentsByID := make(map[string]Student)
+    for _, student := range students {
+        studentsByID[student.ID] = student
+    }
+
+    // Group students by class
+    studentsByClass := make(map[string][]Student)
+    for _, student := range students {
+        studentsByClass[student.Class] = append(studentsByClass[student.Class], student)
+    }
+
+    // Quick lookup by ID
+    fmt.Println("Student S003:", studentsByID["S003"].Name)
+
+    // Print students by class
+    fmt.Println("\nStudents by class:")
+    for class, classStudents := range studentsByClass {
+        fmt.Printf("%s:\n", class)
+        for _, student := range classStudents {
+            fmt.Printf("  %s: %d%%\n", student.Name, student.Grade)
+        }
     }
 }
 ```
 
-### **Explanation**:
+### **9.3.4 Set Implementation**
 
-1. A map stores student IDs as keys and `Student` structs as values.
-2. The map is iterated over to display each student's information.
-
-### **Output**:
-
-```
-ID: S001, Name: Alice, Grade: 90
-ID: S002, Name: Bob, Grade: 85
-```
-
----
-
-## **Exercise 11: Adding Methods to Structs**
-
-**Problem**: Create a `Person` struct with a method `Introduce` that prints the name and age of the person.
-
-### **Code**:
+Go doesn't have a built-in set type, but maps can be used to implement sets efficiently:
 
 ```go
 package main
 
 import "fmt"
 
+// Set implementation using a map
+type Set map[string]struct{}
+
+// Add adds an element to the set
+func (s Set) Add(item string) {
+    s[item] = struct{}{}
+}
+
+// Contains checks if an item is in the set
+func (s Set) Contains(item string) bool {
+    _, exists := s[item]
+    return exists
+}
+
+// Remove removes an item from the set
+func (s Set) Remove(item string) {
+    delete(s, item)
+}
+
+// Items returns all items in the set
+func (s Set) Items() []string {
+    items := make([]string, 0, len(s))
+    for item := range s {
+        items = append(items, item)
+    }
+    return items
+}
+
+func main() {
+    // Create a new set
+    fruits := make(Set)
+
+    // Add items to the set
+    fruits.Add("apple")
+    fruits.Add("banana")
+    fruits.Add("orange")
+    fruits.Add("apple")  // Duplicate, will be ignored
+
+    // Check membership
+    fmt.Println("Contains apple:", fruits.Contains("apple"))
+    fmt.Println("Contains grape:", fruits.Contains("grape"))
+
+    // Remove an item
+    fruits.Remove("banana")
+
+    // Get all items
+    fmt.Println("Set items:", fruits.Items())
+}
+```
+
+## **9.4 Performance Considerations**
+
+Understanding map performance characteristics is crucial for writing efficient Go code.
+
+### **9.4.1 Time Complexity**
+
+Go maps have the following average time complexities:
+
+- **Insertion**: O(1)
+- **Deletion**: O(1)
+- **Lookup**: O(1)
+
+However, in the worst case (many hash collisions), these operations can degrade to O(n).
+
+### **9.4.2 Memory Usage**
+
+Maps in Go use more memory than the sum of their keys and values due to the hash table structure. Some considerations:
+
+- Maps with many entries may cause memory pressure
+- Deleting keys doesn't automatically reduce the map's memory footprint
+- For very large maps that grow and shrink significantly, consider recreating the map periodically
+
+### **9.4.3 Map Initialization with Expected Size**
+
+For better performance when you know the approximate size of your map, you can use `make` with an initial capacity:
+
+```go
+// Create a map with space for approximately 1000 items
+frequentWords := make(map[string]int, 1000)
+```
+
+This reduces the number of hash table resizes as the map grows.
+
+### **9.4.4 Benchmark: Comparing Different Map Operations**
+
+```go
+package main
+
+import (
+    "fmt"
+    "time"
+)
+
+func benchmarkMapOperations(size int) {
+    // Creation
+    start := time.Now()
+    m := make(map[int]int, size)
+    creationTime := time.Since(start)
+
+    // Insertion
+    start = time.Now()
+    for i := 0; i < size; i++ {
+        m[i] = i
+    }
+    insertionTime := time.Since(start)
+
+    // Lookup
+    start = time.Now()
+    for i := 0; i < size; i++ {
+        _ = m[i]
+    }
+    lookupTime := time.Since(start)
+
+    // Deletion
+    start = time.Now()
+    for i := 0; i < size; i++ {
+        delete(m, i)
+    }
+    deletionTime := time.Since(start)
+
+    fmt.Printf("Map with %d elements:\n", size)
+    fmt.Printf("  Creation:  %v\n", creationTime)
+    fmt.Printf("  Insertion: %v\n", insertionTime)
+    fmt.Printf("  Lookup:    %v\n", lookupTime)
+    fmt.Printf("  Deletion:  %v\n", deletionTime)
+}
+
+func main() {
+    benchmarkMapOperations(1000)
+    benchmarkMapOperations(10000)
+    benchmarkMapOperations(100000)
+}
+```
+
+## **9.5 Best Practices for Working with Maps**
+
+### **9.5.1 Map Design Guidelines**
+
+1. **Choose appropriate key types**: Keys must be comparable. Good key types include:
+
+   - Basic types (strings, integers, etc.)
+   - Structs that only contain comparable types
+   - Arrays of comparable types
+
+2. **Avoid expensive operations in map keys**: If using structs as keys, keep them small and avoid fields that make equality checking expensive.
+
+3. **Initialize maps properly**: Always initialize a map before use with `make` or a map literal.
+
+4. **Check for key existence**: Use the "comma ok" idiom to explicitly check if a key exists.
+
+5. **Handle nil maps**: Check if a map is nil before using it, or better yet, always initialize maps before use.
+
+### **9.5.2 Common Map Pitfalls**
+
+**Pitfall 1: Map Not Initialized**
+
+```go
+// Wrong
+var m map[string]int
+m["key"] = 1  // Panic: assignment to entry in nil map
+
+// Right
+m := make(map[string]int)
+m["key"] = 1
+```
+
+**Pitfall 2: Not Checking Key Existence**
+
+```go
+// Wrong
+score := scores["Alice"]  // If "Alice" doesn't exist, score gets the zero value
+if score > 0 {  // This may be misleading if zero is a valid score
+    // ...
+}
+
+// Right
+score, exists := scores["Alice"]
+if !exists {
+    // Handle missing key
+} else if score > 0 {
+    // ...
+}
+```
+
+**Pitfall 3: Direct Assignment to Map Value Fields**
+
+```go
 type Person struct {
     Name string
     Age  int
 }
 
-// Method for the Person struct
-func (p Person) Introduce() {
-    fmt.Printf("Hi, I'm %s and I'm %d years old.\n", p.Name, p.Age)
+people := map[string]Person{
+    "alice": {Name: "Alice", Age: 25},
 }
 
-func main() {
-    person := Person{Name: "John", Age: 30}
-    person.Introduce()
-}
+// Wrong - This won't compile
+// people["alice"].Age++
+
+// Right
+person := people["alice"]
+person.Age++
+people["alice"] = person
 ```
 
-### **Explanation**:
+**Pitfall 4: Concurrent Map Access**
 
-1. The `Introduce` method is defined for the `Person` struct, which accesses its fields.
-2. The method is called on an instance of `Person` to display the introduction.
+```go
+// Wrong - May cause runtime panic
+// go func() { m["key"] = 1 }()
+// go func() { delete(m, "key") }()
 
-### **Output**:
-
+// Right - Use mutex or sync.Map
+var mu sync.Mutex
+go func() {
+    mu.Lock()
+    m["key"] = 1
+    mu.Unlock()
+}()
 ```
-Hi, I'm John and I'm 30 years old.
-```
 
----
+### **9.5.3 Optimizing Map Usage**
+
+1. **Pre-allocate when size is known**: Use `make(map[K]V, size)` to pre-allocate capacity.
+
+2. **Clean up large maps**: If a map grows very large and then shrinks, consider creating a new map to reclaim memory.
+
+3. **Use efficient key types**: Simple, compact keys are more efficient than complex ones.
+
+4. **Consider alternatives for special cases**:
+   - For integer keys with a small, dense range, slices may be more efficient
+   - For sets of integers, consider using bit sets
+   - For concurrent access patterns, evaluate `sync.Map`
+
+## **9.6 Exercises**
+
+### **Exercise 1: Word Frequency Analysis**
+
+Implement a program that reads a text file, counts the frequency of each word, and prints the top 10 most common words.
+
+### **Exercise 2: Implement a Cache**
+
+Create a simple caching system with expiration times for entries using a map and time stamps.
+
+### **Exercise 3: Student Grade Tracker**
+
+Implement a program that tracks student grades across multiple subjects, calculates averages, and identifies top performers.
+
+### **Exercise 4: Custom Map Keys**
+
+Create a map that uses a custom struct as the key, implement proper equality checking, and demonstrate its usage.
+
+### **Exercise 5: Set Operations**
+
+Extend the Set implementation to support union, intersection, and difference operations between sets.
+
+## **9.7 Summary**
+
+In this chapter, we've explored the versatile map data structure in Go:
+
+- **Map Fundamentals**: Creating maps, basic operations, and iteration
+- **Advanced Techniques**: Complex map types, nested maps, and concurrent usage
+- **Practical Applications**: Counting frequencies, caching, grouping data, and implementing sets
+- **Performance Considerations**: Time complexity, memory usage, and optimization
+- **Best Practices**: Design guidelines, avoiding common pitfalls, and efficient usage patterns
+
+Maps are an essential tool in any Go programmer's toolkit. Their combination of fast lookups, flexible key-value storage, and ease of use makes them ideal for a wide range of programming tasks. By mastering maps and understanding their characteristics, you can write more efficient and elegant Go code.
+
+**Next Up**: In Chapter 10, we'll explore structs, methods, and interfaces—the building blocks of Go's type system and object-oriented programming model.
