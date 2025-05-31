@@ -43,7 +43,7 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 
 ### **Section 3: Functions and Error Handling**
 
-- [Chapter 6: Defining and Calling Functions](./chapters/Chapter-6-Functions.md)
+- [Chapter 6: Functions](./chapters/Chapter-6-Functions.md)
   - Function Syntax
   - Variadic Functions
   - Defer, Panic, and Recover
@@ -51,6 +51,10 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
   - Returning Errors
   - Custom Error Types
   - Error Wrapping and Unwrapping
+- [Chapter 7: Packages and Modules](./chapters/Chapter-7-Packages-and-Modules.md)
+  - Creating Packages
+  - Importing Packages
+  - Managing Dependencies
 
 ---
 
@@ -66,6 +70,10 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 - [Chapter 10: Pointers](./chapters/Chapter-10-Pointers.md)
   - Understanding Pointers
   - Passing by Value vs. Reference
+- [Chapter 10: Structs, Methods, and Interfaces](./chapters/Chapter-10-Structs-Methods-Interfaces.md)
+  - Working with Structs
+  - Methods
+  - Basic Interface Usage
 
 ---
 
@@ -111,14 +119,18 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 
 ### **Section 8: Building Production-Ready Go Applications**
 
-- [Chapter 20: Developing REST APIs](./chapters/Chapter-20-REST-APIs.md)
+- [Chapter 20: Building RESTful APIs](./chapters/Chapter-20-Building-RESTful-APIs.md)
   - Routing and Middleware
   - JSON Serialization
   - Error Handling in APIs
-- [Chapter 21: Working with Databases](./chapters/Chapter-21-Databases.md)
+- [Chapter 20: Working with Databases](./chapters/Chapter-20-Databases.md)
   - SQL Databases with `gorm`
   - Writing Queries and Transactions
   - Handling NoSQL Databases
+- [Chapter 21: Microservices](./chapters/Chapter-21-Microservices.md)
+  - Microservice Architecture
+  - Service Communication
+  - Deployment Patterns
 - [Chapter 22: Clean Code and Architecture](./chapters/Chapter-22-Clean-Code.md)
   - Layered Architecture
   - Dependency Injection
@@ -126,6 +138,10 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 - [Chapter 23: Design Patterns in Go](./chapters/Chapter-23-Design-Patterns.md)
   - Singleton, Factory, and Strategy Patterns
   - Event-Driven Architectures
+- [Chapter 23: Performance](./chapters/Chapter-23-Performance.md)
+  - Benchmarking
+  - Optimization Techniques
+  - Memory Management
 - [Chapter 24: Building CLI Tools](./chapters/Chapter-24-CLI-Tools.md)
   - Command-Line Applications
   - Handling Arguments and Flags
@@ -133,11 +149,53 @@ Welcome to **Jump to Go**, your ultimate open-source guide to mastering Go progr
 
 ---
 
-### **Section 9: Bringing It All Together**
+### **Section 9: Advanced Enterprise Go**
 
-- [Chapter 25: Comprehensive Project](./chapters/Chapter-25-Comprehensive-Project.md)
-  - **Option 1:** In-Memory Key-Value Store
-  - **Option 2:** REST API for Task Management
+- [Chapter 25: Platform Engineering with Go](./chapters/Chapter-25-Platform-Engineering.md)
+  - Building Developer Platforms
+  - Infrastructure as Code
+  - Cloud Integration
+- [Chapter 26: Event-Driven Architecture](./chapters/Chapter-26-Event-Driven-Architecture.md)
+  - Event Sourcing
+  - CQRS Pattern
+  - Message Brokers
+- [Chapter 27: Domain-Driven Design](./chapters/Chapter-27-Domain-Driven-Design.md)
+  - Strategic Design
+  - Tactical Patterns
+  - Bounded Contexts
+- [Chapter 28: Observability-Driven Development](./chapters/Chapter-28-Observability-Driven-Development.md)
+  - Logging
+  - Metrics
+  - Distributed Tracing
+- [Chapter 29: Go for Production](./chapters/Chapter-29-Go-for-Production.md)
+  - Deployment Strategies
+  - Container Orchestration
+  - CI/CD Pipelines
+- [Chapter 30: Enterprise-Grade Security](./chapters/Chapter-30-Enterprise-Grade-Security.md)
+  - Authentication and Authorization
+  - Encryption
+  - Secure Coding Practices
+- [Chapter 31: High Performance Go](./chapters/Chapter-31-High-Performance-Go.md)
+  - Performance Tuning
+  - Concurrency Optimizations
+  - Memory Efficiency
+
+---
+
+### **Section 10: Go for Specialized Domains**
+
+- [Chapter 32: Cloud-Native Go](./chapters/Chapter-32-Cloud-Native-Go.md)
+  - Kubernetes Integration
+  - Cloud Services
+  - Serverless Functions
+- [Chapter 33: Go for AI and LLMs](./chapters/Chapter-33-Go-for-AI-and-LLMs.md)
+  - Machine Learning Integration
+  - LLM Applications
+  - AI Service Development
+- [Chapter 34: Go for Blockchain and Crypto](./chapters/Chapter-34-Go-for-Blockchain-and-Crypto.md)
+  - Smart Contracts
+  - Blockchain Applications
+  - Cryptographic Primitives
 
 ---
 
@@ -172,4 +230,4 @@ This project is licensed under the MIT License. See the [LICENSE](./LICENSE) fil
 
 Stay tuned for new chapters and updates! Follow the repository to get notified of the latest changes.
 
-Let’s **Jump to Go** and start coding together! 💻✨
+Let's **Jump to Go** and start coding together! 💻✨
